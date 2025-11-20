@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  products  Product[]
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String
+  price       Float
+  imageUrl    String?
+  category    Category  @relation(fields: [categoryId], references: [id])
+  categoryId  Int
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  createdAt   DateTime    @default(now())
+  totalAmount Float
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  quantity  Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+}
+
+enum Role {
+  EMPLOYEE  // Pha chế, Phục vụ, Thu ngân
+  MANAGER   
+  ADMIN      
+}
+
+// Dán ngay bên dưới enum Role
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique // Email dùng để đăng nhập
+  password  String   // Mật khẩu sẽ được hash (băm)
+  name      String?  // Tên (có thể có hoặc không)
+  
+  // Liên kết với Role enum
+  role      Role     @default(EMPLOYEE) // Mặc định khi tạo là Nhân viên
+
+  // (Các liên kết khác về sau, ví dụ: chấm công, đơn hàng đã tạo...)
+}
