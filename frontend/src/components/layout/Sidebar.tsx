@@ -1,146 +1,148 @@
-// src/components/layout/Sidebar.tsx
+// frontend/src/components/layout/Sidebar.tsx
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../features/auth/hooks/useAuth';
 import {
-  ArchiveBoxIcon,
-  ShoppingCartIcon,
-  FireIcon,
-  ClockIcon,
+  MapPinIcon,
+  ClipboardDocumentListIcon,
+  FolderIcon,
   UserGroupIcon,
-  ArrowRightOnRectangleIcon, // sign-out icon
+  ArrowRightOnRectangleIcon,
+  FireIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../../context/AuthContext';
 
-function classNames(...classes: string[]): string {
-  return classes.filter(Boolean).join(' ');
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export function Sidebar({ isOpen, onClose }: Readonly<{ isOpen?: boolean; onClose?: () => void }>) {
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
 
   const navigation = [
-    { 
-      name: 'Bán Hàng (POS)', 
-      href: '/order', 
-      icon: ShoppingCartIcon, 
-      allowedRoles: ['ADMIN', 'MANAGER', 'EMPLOYEE']
+    {
+      name: 'Sơ đồ bàn',
+      href: '/tables',
+      icon: MapPinIcon,
+      roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
     },
-    { 
-      name: 'Lịch sử đơn hàng', 
-      href: '/orderhistory', 
-      icon: ClockIcon,
-      allowedRoles: ['ADMIN', 'MANAGER', 'EMPLOYEE']
+    {
+      name: 'Lịch sử đơn hàng',
+      href: '/orders',
+      icon: ClipboardDocumentListIcon,
+      roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
     },
-    { 
-      name: 'Quản lý Menu', 
-      href: '/admin', 
-      icon: ArchiveBoxIcon,
-      allowedRoles: ['ADMIN', 'MANAGER']
+    {
+      name: 'Quản lý Menu',
+      href: '/menu',
+      icon: FolderIcon,
+      roles: ['ADMIN', 'MANAGER'],
     },
-    { 
-      name: 'Nhân viên', 
-      href: '/staff', 
+    {
+      name: 'Quản lý Nhân sự',
+      href: '/staff',
       icon: UserGroupIcon,
-      allowedRoles: ['ADMIN'] 
+      roles: ['ADMIN', 'MANAGER'],
     },
   ];
 
-  const filteredNavigation = navigation.filter((item) => 
-    user && item.allowedRoles.includes(user.role)
+  const filteredNav = navigation.filter((item) =>
+    user ? item.roles.includes(user.role) : false
   );
 
   return (
     <>
-      {/* Mobile off-canvas panel */}
-      <div
-        className={`fixed inset-0 z-40 md:hidden transition-opacity ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
-        aria-hidden={!isOpen}
-      >
-        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-        <div className={`absolute left-0 top-0 bottom-0 w-full sm:w-80 bg-gray-900 text-white shadow-lg transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform`}>
-          <div className="relative">
-            <div className="flex h-16 items-center px-4 justify-start bg-gray-900">
-              <FireIcon className="h-8 w-8 text-indigo-400" />
-              <span className="ml-2 text-xl font-semibold">Drink POS</span>
-            </div>
-            {/* Close button for mobile off-canvas */}
-            <button
-              onClick={onClose}
-              aria-label="Close menu"
-              className="absolute right-2 top-2 p-1 rounded-md text-gray-300 hover:text-white hover:bg-gray-800/50"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-800">
-            Xin chào, <span className="text-gray-300 font-medium">{user?.username}</span> <br/>
-            <span className="text-indigo-400 uppercase font-bold" style={{fontSize: '0.65rem'}}>
-              {user?.role}
-            </span>
-          </div>
-          <nav className="flex-1 space-y-1 px-2 py-4">
-            {filteredNavigation.map((item) => (
-              <NavLink key={item.name} to={item.href} className={({ isActive }) => classNames(isActive ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white', 'group flex items-center rounded-md px-3 py-2 text-sm font-medium')}
-                onClick={onClose}
-              >
-                <item.icon className="h-6 w-6 flex-shrink-0 mr-3" />
-                <span className="whitespace-nowrap">{item.name}</span>
-              </NavLink>
-            ))}
-          </nav>
-          <div className="border-t border-gray-800 p-2">
-            <button onClick={() => { logout(); onClose?.(); }} className="w-full group flex items-center rounded-md px-2 py-2 text-sm font-medium text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors">
-              <ArrowRightOnRectangleIcon className="h-6 w-6 mr-3" />
-              Đăng xuất
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Desktop/static sidebar */}
-      <div className="hidden md:flex flex-col bg-gray-900 text-white transition-all duration-300 ease-in-out w-64 md:w-64 lg:w-72 overflow-hidden h-screen sticky top-0">
-        <div className="flex h-16 flex-shrink-0 items-center px-4 justify-start bg-gray-900 z-10 shadow-sm">
-          <FireIcon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
-          <span className="ml-2 text-xl font-semibold whitespace-nowrap">Drink POS</span>
-        </div>
-        <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-800">
-          Xin chào, <span className="text-gray-300 font-medium">{user?.username}</span> <br/>
-          <span className="text-indigo-400 uppercase font-bold" style={{fontSize: '0.65rem'}}>
-            {user?.role}
-          </span>
-        </div>
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          <nav className="flex-1 space-y-1 px-2 py-4">
-            {filteredNavigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  classNames(
-                    isActive
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-                    'group flex items-center rounded-md px-2 py-2 text-sm font-medium transition-colors justify-start'
-                  )
-                }
-              >
-                <item.icon className="h-6 w-6 flex-shrink-0 md:mr-3" />
-                <span className="whitespace-nowrap">{item.name}</span>
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-        <div className="border-t border-gray-800 p-2">
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          w-72 bg-gray-900 text-white
+          transform transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          flex flex-col
+        `}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600">
+              <FireIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="font-bold text-lg">Drink POS</h2>
+              <p className="text-xs text-gray-400">Management System</p>
+            </div>
+          </div>
           <button
-            onClick={logout}
-            className="w-full group flex items-center rounded-md px-2 py-2 text-sm font-medium text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors justify-start"
-            title="Đăng xuất"
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-lg text-gray-400 hover:bg-gray-800"
           >
-            <ArrowRightOnRectangleIcon className="h-6 w-6 flex-shrink-0 md:mr-3" />
-            <span className="whitespace-nowrap">Đăng xuất</span>
+            <XMarkIcon className="h-5 w-5" />
           </button>
         </div>
-      </div>
+
+        {/* User Info */}
+        <div className="px-6 py-4 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-sm">
+              {user?.username.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{user?.username}</p>
+              <p className="text-xs text-gray-400">
+                {user?.role === 'ADMIN'
+                  ? 'Quản trị viên'
+                  : user?.role === 'MANAGER'
+                  ? 'Quản lý'
+                  : 'Nhân viên'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {filteredNav.map((item) => (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                }`
+              }
+            >
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium">{item.name}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className="px-3 py-4 border-t border-gray-800">
+          <button
+            onClick={() => {
+              logout();
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:bg-red-900/20 transition-colors"
+          >
+            <ArrowRightOnRectangleIcon className="h-5 w-5" />
+            <span className="font-medium">Đăng xuất</span>
+          </button>
+        </div>
+      </aside>
     </>
   );
 }
