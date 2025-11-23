@@ -1,31 +1,36 @@
-// src/orders/dto/create-order.dto.ts
-
-// --- ĐẢM BẢO BẠN CÓ ĐỦ 2 DÒNG IMPORT NÀY ---
 import { Type } from 'class-transformer';
 import {
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsPositive,
+  IsString,
   ValidateNested,
 } from 'class-validator';
-// ---
 
-// Định nghĩa cho 1 món hàng bên trong
+// DTO cho từng món trong order
 class OrderItemDto {
   @IsInt()
   @IsNotEmpty()
   productId: number;
 
   @IsInt()
-  @IsPositive() // Số lượng phải > 0
+  @IsPositive()
   quantity: number;
+
+  @IsString()
+  @IsOptional()
+  note?: string; // 👈 Thêm ghi chú cho món
 }
 
-// Đây là DTO chính
 export class CreateOrderDto {
   @IsArray()
-  @ValidateNested({ each: true }) // Kiểm tra từng phần tử trong mảng
-  @Type(() => OrderItemDto) // Giúp class-validator biết mảng này chứa gì
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @IsInt()
+  @IsOptional()
+  tableId?: number; // 👈 Thêm tableId (null = mang về)
 }

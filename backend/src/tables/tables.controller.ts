@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Patch,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
 
@@ -16,8 +25,17 @@ export class TablesController {
     return this.tablesService.findAll();
   }
 
+  // 👇 Endpoint mới: Cập nhật trạng thái bàn
+  @Patch(':id/status')
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('status') status: string,
+  ) {
+    return this.tablesService.updateStatus(id, status);
+  }
+
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tablesService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.tablesService.remove(id);
   }
 }
