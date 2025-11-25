@@ -6,10 +6,10 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsEnum,
   ValidateNested,
 } from 'class-validator';
 
-// DTO cho từng món trong order
 class OrderItemDto {
   @IsInt()
   @IsNotEmpty()
@@ -21,7 +21,7 @@ class OrderItemDto {
 
   @IsString()
   @IsOptional()
-  note?: string; // 👈 Thêm ghi chú cho món
+  note?: string; // Ghi chú riêng từng món
 }
 
 export class CreateOrderDto {
@@ -32,5 +32,24 @@ export class CreateOrderDto {
 
   @IsInt()
   @IsOptional()
-  tableId?: number; // 👈 Thêm tableId (null = mang về)
+  tableId?: number; // null = TAKEAWAY
+
+  @IsString()
+  @IsOptional()
+  customerName?: string;
+
+  @IsString()
+  @IsOptional()
+  customerPhone?: string;
+
+  @IsEnum(['DINE_IN', 'TAKEAWAY'])
+  @IsOptional()
+  type?: string;
+}
+
+export class AddItemsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items: OrderItemDto[];
 }

@@ -6,11 +6,14 @@ import { MainLayout } from './components/layout/MainLayout';
 
 // Pages
 import LoginPage from './features/auth/pages/LoginPage';
-import TablePage from './features/tables/pages/TablePage';
-import POSPage from './features/pos/pages/POSPage';
+import MainPage from './features/main/pages/MainPage';
+import TableDetailPage from './features/main/pages/TableDetailPage';
+import TakeawayPage from './features/main/pages/TakeawayPage';
+import KitchenPage from './features/kitchen/pages/KitchenPage';
 import OrderHistoryPage from './features/orders/pages/OrderHistoryPage';
 import MenuManagementPage from './features/menu/pages/MenuManagementPage';
 import StaffManagementPage from './features/staff/pages/StaffManagementPage';
+import ZonesManagementPage from './features/zones/pages/ZonesManagementPage';
 
 function App() {
   return (
@@ -19,35 +22,34 @@ function App() {
         {/* Public Route */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected Routes - Cần đăng nhập */}
+        {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            {/* Default redirect -> Sơ đồ bàn */}
-            <Route path="/" element={<Navigate to="/tables" replace />} />
+            {/* Default redirect -> Main */}
+            <Route path="/" element={<Navigate to="/main" replace />} />
 
-            {/* Sơ đồ bàn - Tất cả role */}
-            <Route path="/tables" element={<TablePage />} />
+            {/* 🔥 Main Tabs */}
+            <Route path="/main" element={<MainPage />} />
+            <Route path="/kitchen" element={<KitchenPage />} />
 
-            {/* POS với tableId - Tất cả role */}
-            <Route path="/pos/:tableId" element={<POSPage />} />
+            {/* Table Detail & Takeaway */}
+            <Route path="/table/:tableId" element={<TableDetailPage />} />
+            <Route path="/takeaway" element={<TakeawayPage />} />
 
-            {/* Orders - Tất cả role */}
+            {/* Order History */}
             <Route path="/orders" element={<OrderHistoryPage />} />
 
-            {/* Menu - Admin & Manager */}
+            {/* Admin & Manager only */}
             <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
               <Route path="/menu" element={<MenuManagementPage />} />
-            </Route>
-
-            {/* Staff - Admin & Manager */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+              <Route path="/zones" element={<ZonesManagementPage />} />
               <Route path="/staff" element={<StaffManagementPage />} />
             </Route>
           </Route>
         </Route>
 
-        {/* 404 - Redirect về tables */}
-        <Route path="*" element={<Navigate to="/tables" replace />} />
+        {/* 404 */}
+        <Route path="*" element={<Navigate to="/main" replace />} />
       </Routes>
     </AuthProvider>
   );

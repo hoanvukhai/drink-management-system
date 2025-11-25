@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
+import { TableStatus } from '@prisma/client'; // 👈 Import enum
 
 @Controller('tables')
 export class TablesController {
@@ -25,11 +26,10 @@ export class TablesController {
     return this.tablesService.findAll();
   }
 
-  // 👇 Endpoint mới: Cập nhật trạng thái bàn
   @Patch(':id/status')
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('status') status: string,
+    @Body('status') status: TableStatus, // 👈 Type-safe
   ) {
     return this.tablesService.updateStatus(id, status);
   }

@@ -5,13 +5,13 @@ import {
 } from '@nestjs/common';
 import { CreateTableDto } from './dto/create-table.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TableStatus } from '@prisma/client'; // 👈 Import TableStatus enum
 
 @Injectable()
 export class TablesService {
   constructor(private prisma: PrismaService) {}
 
   async create(createTableDto: CreateTableDto) {
-    // Kiểm tra zone tồn tại
     const zone = await this.prisma.zone.findUnique({
       where: { id: createTableDto.zoneId },
     });
@@ -23,8 +23,9 @@ export class TablesService {
     return this.prisma.table.create({
       data: {
         name: createTableDto.name,
+        capacity: 4, // Default capacity
         zoneId: createTableDto.zoneId,
-        status: 'AVAILABLE',
+        status: TableStatus.AVAILABLE, // 👈 Dùng enum
       },
       include: { zone: true },
     });
@@ -32,7 +33,20 @@ export class TablesService {
 
   findAll() {
     return this.prisma.table.findMany({
-      include: { zone: true },
+      include: {
+        zone: true,
+        // Lấy đơn hàng đang PENDING của bàn này
+        orders: {
+          where: { status: { not: 'COMPLETED' } }, // 👈 Lấy tất cả orders chưa hoàn thành
+          include: {
+            items: {
+              include: { product: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: [{ zoneId: 'asc' }, { id: 'asc' }],
     });
   }
@@ -43,9 +57,7 @@ export class TablesService {
       include: {
         zone: true,
         orders: {
-          where: {
-            status: { notIn: ['COMPLETED', 'CANCELLED'] },
-          },
+          where: { status: { not: 'COMPLETED' } },
           include: {
             items: { include: { product: true } },
           },
@@ -62,15 +74,18 @@ export class TablesService {
   }
 
   async updateStatus(id: number, status: string) {
-    const validStatuses = ['AVAILABLE', 'OCCUPIED'];
+    // 👇 Validate status trước
+    const validStatuses: TableStatus[] = [
+      TableStatus.AVAILABLE,
+      TableStatus.OCCUPIED,
+    ];
 
-    if (!validStatuses.includes(status)) {
+    if (!validStatuses.includes(status as TableStatus)) {
       throw new BadRequestException(
         `Invalid status: ${status}. Must be AVAILABLE or OCCUPIED`,
       );
     }
 
-    // Kiểm tra table tồn tại
     const table = await this.prisma.table.findUnique({ where: { id } });
     if (!table) {
       throw new NotFoundException(`Table #${id} not found`);
@@ -78,20 +93,17 @@ export class TablesService {
 
     return this.prisma.table.update({
       where: { id },
-      data: { status },
+      data: { status: status as TableStatus }, // 👈 Cast về TableStatus
       include: { zone: true },
     });
   }
 
   async remove(id: number) {
-    // ✅ PHẢI CÓ include để lấy orders
     const table = await this.prisma.table.findUnique({
       where: { id },
       include: {
         orders: {
-          where: {
-            status: { notIn: ['COMPLETED', 'CANCELLED'] },
-          },
+          where: { status: { not: 'COMPLETED' } },
         },
       },
     });
@@ -100,8 +112,7 @@ export class TablesService {
       throw new NotFoundException(`Table #${id} not found`);
     }
 
-    // ✅ Bây giờ TypeScript biết table.orders tồn tại
-    if (table.orders.length > 0) {
+    if (table.orders && table.orders.length > 0) {
       throw new BadRequestException('Cannot delete table with active orders');
     }
 

@@ -60,13 +60,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Navigate based on role - Default to /tables (Sơ đồ bàn)
       setTimeout(() => {
-        if (decoded.role === 'ADMIN') {
-          navigate('/menu'); // Admin -> Quản lý menu
-        } else if (decoded.role === 'MANAGER') {
-          navigate('/tables'); // Manager -> Sơ đồ bàn
-        } else {
-          navigate('/tables'); // Employee -> Sơ đồ bàn
-        }
+        navigate('/main');
       }, 0);
     },
     [navigate]

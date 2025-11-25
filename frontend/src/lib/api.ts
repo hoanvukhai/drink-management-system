@@ -8,7 +8,6 @@ export const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Request interceptor - Add auth token
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
@@ -20,7 +19,6 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - Handle errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -32,9 +30,9 @@ apiClient.interceptors.response.use(
   }
 );
 
-// ========================================
-// API TYPES
-// ========================================
+// ============================================
+// TYPES
+// ============================================
 
 export interface Category {
   id: number;
@@ -49,15 +47,16 @@ export interface Product {
   imageUrl?: string | null;
 }
 
-// Table & Zone Types
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED';
 
 export interface Table {
   id: number;
   name: string;
+  capacity: number;
   status: TableStatus;
   zoneId: number;
   zone?: Zone;
+  orders?: Order[];
 }
 
 export interface Zone {
@@ -66,8 +65,7 @@ export interface Zone {
   tables: Table[];
 }
 
-// Order Types
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'READY' | 'SERVED' | 'COMPLETED';
 
 export interface OrderItemInput {
   productId: number;
@@ -78,23 +76,37 @@ export interface OrderItemInput {
 export interface CreateOrderInput {
   items: OrderItemInput[];
   tableId?: number | null;
+  customerName?: string;
+  customerPhone?: string;
+  type?: 'DINE_IN' | 'TAKEAWAY';
 }
 
 export interface OrderItem {
   id: number;
   quantity: number;
+  price: number;
   note?: string;
+  isServed: boolean;
+  productId: number;
   product: Product;
+  createdAt: string;
 }
 
 export interface Order {
   id: number;
+  orderNumber: string;
   createdAt: string;
   totalAmount: number;
   status: OrderStatus;
+  type: 'DINE_IN' | 'TAKEAWAY';
   tableId?: number | null;
   table?: Table | null;
+  customerName?: string;
+  customerPhone?: string;
   items: OrderItem[];
+  readyAt?: string;
+  servedAt?: string;
+  completedAt?: string;
 }
 
 export interface User {
@@ -114,20 +126,17 @@ export interface RegisterData extends LoginCredentials {
   role?: User['role'];
 }
 
-// ========================================
+// ============================================
 // API FUNCTIONS
-// ========================================
+// ============================================
 
-// Auth
 export const authAPI = {
   login: (credentials: LoginCredentials) =>
     apiClient.post<{ accessToken: string }>('/auth/login', credentials),
-
   register: (data: RegisterData) =>
     apiClient.post<User>('/auth/register', data),
 };
 
-// Categories
 export const categoriesAPI = {
   getAll: () => apiClient.get<Category[]>('/categories'),
   create: (name: string) => apiClient.post<Category>('/categories', { name }),
@@ -135,7 +144,6 @@ export const categoriesAPI = {
   delete: (id: number) => apiClient.delete(`/categories/${id}`),
 };
 
-// Products
 export const productsAPI = {
   getAll: () => apiClient.get<Product[]>('/products'),
   getById: (id: number) => apiClient.get<Product>(`/products/${id}`),
@@ -144,29 +152,67 @@ export const productsAPI = {
   delete: (id: number) => apiClient.delete(`/products/${id}`),
 };
 
-// Zones
 export const zonesAPI = {
   getAll: () => apiClient.get<Zone[]>('/zones'),
   create: (name: string) => apiClient.post<Zone>('/zones', { name }),
+  update: (id: number, name: string) => apiClient.patch<Zone>(`/zones/${id}`, { name }),
   delete: (id: number) => apiClient.delete(`/zones/${id}`),
 };
 
-// Tables
 export const tablesAPI = {
   getAll: () => apiClient.get<Table[]>('/tables'),
-  create: (data: { name: string; zoneId: number }) => apiClient.post<Table>('/tables', data),
-  updateStatus: (id: number, status: TableStatus) => apiClient.patch<Table>(`/tables/${id}/status`, { status }),
+  getById: (id: number) => apiClient.get<Table>(`/tables/${id}`),
+  create: (data: { name: string; zoneId: number; capacity?: number }) => 
+    apiClient.post<Table>('/tables', data),
+  update: (id: number, data: { name?: string; capacity?: number }) =>
+    apiClient.patch<Table>(`/tables/${id}`, data),
+  updateStatus: (id: number, status: TableStatus) => 
+    apiClient.patch<Table>(`/tables/${id}/status`, { status }),
   delete: (id: number) => apiClient.delete(`/tables/${id}`),
 };
 
-// Orders
 export const ordersAPI = {
-  getAll: () => apiClient.get<Order[]>('/orders'),
+  // Create new order
   create: (data: CreateOrderInput) => apiClient.post<Order>('/orders', data),
-  updateStatus: (id: number, status: OrderStatus) => apiClient.patch<Order>(`/orders/${id}/status`, { status }),
+  
+  // Add items to existing order
+  addItems: (orderId: number, items: OrderItemInput[]) =>
+    apiClient.post<Order>(`/orders/${orderId}/items`, { items }),
+  
+  // Remove item from order
+  removeItem: (orderId: number, itemId: number) =>
+    apiClient.delete(`/orders/${orderId}/items/${itemId}`),
+  
+  // Kitchen: Mark as ready
+  markAsReady: (orderId: number) =>
+    apiClient.patch<Order>(`/orders/${orderId}/ready`),
+  
+  // Server: Mark item as served
+  markItemServed: (orderId: number, itemId: number) =>
+    apiClient.patch<Order>(`/orders/${orderId}/items/${itemId}/served`),
+  
+  // Move table
+  moveTable: (orderId: number, newTableId: number) =>
+    apiClient.patch<Order>(`/orders/${orderId}/move`, { newTableId }),
+  
+  // Complete order (payment)
+  complete: (orderId: number) =>
+    apiClient.patch<Order>(`/orders/${orderId}/complete`),
+  
+  // Get orders by role
+  getForServer: () => apiClient.get<Order[]>('/orders/for-server'),
+  getForKitchen: () => apiClient.get<Order[]>('/orders/for-kitchen'),
+  getForCashier: () => apiClient.get<Order[]>('/orders/for-cashier'),
+  
+  // Get active order by table
+  getActiveOrderByTable: (tableId: number) =>
+    apiClient.get<Order>(`/orders/table/${tableId}`),
+  
+  // Get all orders (history)
+  getAll: () => apiClient.get<Order[]>('/orders'),
+  getById: (id: number) => apiClient.get<Order>(`/orders/${id}`),
 };
 
-// Users/Staff
 export const usersAPI = {
   getAll: () => apiClient.get<User[]>('/users'),
   getById: (id: number) => apiClient.get<User>(`/users/${id}`),

@@ -1,82 +1,119 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // khong sao
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER   
+  ADMIN      
+}
+
+// 👇 Trạng thái Order đơn giản
+enum OrderStatus {
+  PENDING    // Đang chờ pha chế
+  READY      // Đã pha xong, chờ mang ra
+  SERVED     // Đã mang ra cho khách
+  COMPLETED  // Đã thanh toán
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  name      String?
+  role      Role     @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Category {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Product {
-  id          Int       @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   name        String
   price       Float
   imageUrl    String?
-  category    Category  @relation(fields: [categoryId], references: [id])
+  category    Category    @relation(fields: [categoryId], references: [id])
   categoryId  Int
   orderItems  OrderItem[]
-}
-
-model Order {
-  id          Int         @id @default(autoincrement())
   createdAt   DateTime    @default(now())
-  totalAmount Float
-  status      String      @default("PENDING")
-  items       OrderItem[]
-  table       Table?      @relation(fields: [tableId], references: [id])
-  tableId     Int?
-}
-
-model OrderItem {
-  id        Int     @id @default(autoincrement())
-  quantity  Int
-  note      String?
-  order     Order   @relation(fields: [orderId], references: [id])
-  orderId   Int
-  product   Product @relation(fields: [productId], references: [id])
-  productId Int
-}
-
-enum Role {
-  EMPLOYEE  // Pha chế, Phục vụ, Thu ngân
-  MANAGER   
-  ADMIN      
-}
-
-// Dán ngay bên dưới enum Role
-
-model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique // Email dùng để đăng nhập
-  password  String   // Mật khẩu sẽ được hash (băm)
-  name      String?  // Tên (có thể có hoặc không)
-  role      Role     @default(EMPLOYEE) // Mặc định khi tạo là Nhân viên
-  // (Các liên kết khác về sau, ví dụ: chấm công, đơn hàng đã tạo...)
+  updatedAt   DateTime    @updatedAt
 }
 
 model Zone {
   id        Int      @id @default(autoincrement())
-  name      String   // Ví dụ: "Tầng 1"
+  name      String
   tables    Table[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Table {
-  id        Int      @id @default(autoincrement())
-  name      String   // Ví dụ: "Bàn 01"
-  status    String   @default("AVAILABLE") // Trạng thái: AVAILABLE (Trống), OCCUPIED (Có khách)
-  zone      Zone     @relation(fields: [zoneId], references: [id])
-  zoneId    Int
-  orders    Order[]
+  id          Int         @id @default(autoincrement())
+  name        String
+  capacity    Int         @default(4)
+  status      TableStatus @default(AVAILABLE)
+  zone        Zone        @relation(fields: [zoneId], references: [id])
+  zoneId      Int
+  orders      Order[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Order {
+  id              Int         @id @default(autoincrement())
+  orderNumber     String      @unique // #0001
+  totalAmount     Float       @default(0)
+  status          OrderStatus @default(PENDING)
+  type            String      @default("DINE_IN") // DINE_IN | TAKEAWAY
+  
+  // Table (null nếu mang về)
+  table           Table?      @relation(fields: [tableId], references: [id])
+  tableId         Int?
+  
+  // Customer (optional cho takeaway)
+  customerName    String?
+  customerPhone   String?
+  
+  // Timing
+  createdAt       DateTime    @default(now())     // Thời gian tạo đơn
+  readyAt         DateTime?                       // Thời gian pha chế xong
+  servedAt        DateTime?                       // Thời gian mang ra
+  completedAt     DateTime?                       // Thời gian thanh toán
+  
+  items           OrderItem[]
+  
+  @@index([status])
+  @@index([tableId])
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     Int
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   Int
+  quantity    Int
+  price       Float    // Giá tại thời điểm order
+  note        String?  // Ghi chú: "Ít đường", "Nhiều đá"
+  isServed    Boolean  @default(false) // 👈 Đã mang ra chưa?
+  createdAt   DateTime @default(now())
+  
+  @@index([orderId])
 }

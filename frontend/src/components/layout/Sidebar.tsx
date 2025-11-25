@@ -2,13 +2,13 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import {
-  MapPinIcon,
+  FireIcon,
   ClipboardDocumentListIcon,
   FolderIcon,
   UserGroupIcon,
   ArrowRightOnRectangleIcon,
-  FireIcon,
   XMarkIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -20,22 +20,43 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
 
   const navigation = [
+    // 🔥 2 TABS CHÍNH
     {
-      name: 'Sơ đồ bàn',
-      href: '/tables',
-      icon: MapPinIcon,
+      name: '🍽️ Phục vụ & Thu ngân',
+      href: '/main',
+      icon: FireIcon,
       roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
     },
+    {
+      name: '☕ Bếp / Bar',
+      href: '/kitchen',
+      icon: FireIcon,
+      roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
+    },
+    
+    { divider: true },
+    
+    // Others
     {
       name: 'Lịch sử đơn hàng',
       href: '/orders',
       icon: ClipboardDocumentListIcon,
       roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
     },
+    
+    { divider: true },
+    
+    // Admin & Manager
     {
       name: 'Quản lý Menu',
       href: '/menu',
       icon: FolderIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      name: 'Quản lý Khu vực & Bàn',
+      href: '/zones',
+      icon: MapPinIcon,
       roles: ['ADMIN', 'MANAGER'],
     },
     {
@@ -47,12 +68,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   ];
 
   const filteredNav = navigation.filter((item) =>
-    user ? item.roles.includes(user.role) : false
+    item.divider || (user && item.roles?.includes(user.role))
   );
 
   return (
     <>
-      {/* Mobile Overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -60,7 +80,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
@@ -70,14 +89,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           flex flex-col
         `}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600">
-              <FireIcon className="h-6 w-6" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-orange-600 to-red-600">
+              ☕
             </div>
             <div>
-              <h2 className="font-bold text-lg">Drink POS</h2>
+              <h2 className="font-bold text-lg">Cafe POS</h2>
               <p className="text-xs text-gray-400">Management System</p>
             </div>
           </div>
@@ -89,7 +107,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {/* User Info */}
         <div className="px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-sm">
@@ -108,28 +125,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {filteredNav.map((item) => (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                }`
-              }
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              <span className="font-medium">{item.name}</span>
-            </NavLink>
-          ))}
+          {filteredNav.map((item, index) => {
+            if (item.divider) {
+              return <div key={`divider-${index}`} className="h-px bg-gray-800 my-2" />;
+            }
+            return (
+              <NavLink
+                key={item.href}
+                to={item.href!}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-orange-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`
+                }
+              >
+                <span className="font-medium">{item.name}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
-        {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-800">
           <button
             onClick={() => {

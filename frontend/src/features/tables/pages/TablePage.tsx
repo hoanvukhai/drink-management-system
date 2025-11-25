@@ -1,12 +1,11 @@
-// frontend/src/features/tables/pages/TablePage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { zonesAPI, Zone, Table } from '../../../lib/api';
+import { zonesAPI, Zone, Table, tablesAPI } from '../../../lib/api';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Modal, ModalFooter } from '../../../components/ui/Modal';
-import { Input, Select } from '../../../components/ui/Input';
-import { tablesAPI } from '../../../lib/api';
+import { Input } from '../../../components/ui/Input';
+import { formatCurrency } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import {
   PlusIcon,
@@ -15,6 +14,7 @@ import {
   ShoppingBagIcon,
   TrashIcon,
   Cog6ToothIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 export default function TablePage() {
@@ -23,7 +23,6 @@ export default function TablePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isManageMode, setIsManageMode] = useState(false);
   
-  // Modal states
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [zoneName, setZoneName] = useState('');
@@ -51,11 +50,9 @@ export default function TablePage() {
     }
   };
 
-  // Lọc bàn theo khu vực đang chọn
   const currentZone = zones.find((z) => z.id === activeZoneId);
   const currentTables = currentZone?.tables || [];
 
-  // Handlers
   const handleTableClick = (table: Table) => {
     if (isManageMode) return;
     navigate(`/pos/${table.id}`);
@@ -80,7 +77,7 @@ export default function TablePage() {
   };
 
   const handleDeleteZone = async (zoneId: number) => {
-    if (!confirm('Xóa khu vực này? Tất cả bàn trong khu vực cũng sẽ bị xóa.')) return;
+    if (!confirm('Xóa khu vực này?')) return;
     try {
       await zonesAPI.delete(zoneId);
       toast.success('Xóa khu vực thành công');
@@ -124,6 +121,20 @@ export default function TablePage() {
     }
   };
 
+  // 👇 Helper: Tính thời gian ngồi
+  const getDuration = (createdAt: string) => {
+    const start = new Date(createdAt).getTime();
+    const now = new Date().getTime();
+    const minutes = Math.floor((now - start) / 60000);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    
+    if (hours > 0) {
+      return `${hours}h${mins}p`;
+    }
+    return `${mins}p`;
+  };
+
   const getTableColor = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
@@ -164,7 +175,6 @@ export default function TablePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container-custom py-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="page-title flex items-center gap-2">
@@ -201,7 +211,6 @@ export default function TablePage() {
                 <span className="ml-2 text-sm opacity-75">({zone.tables.length})</span>
               </button>
               
-              {/* Delete zone button (manage mode) */}
               {isManageMode && (
                 <button
                   onClick={() => handleDeleteZone(zone.id)}
@@ -213,7 +222,6 @@ export default function TablePage() {
             </div>
           ))}
           
-          {/* Add Zone Button (manage mode) */}
           {isManageMode && (
             <button
               onClick={() => setShowZoneModal(true)}
@@ -241,7 +249,10 @@ export default function TablePage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {currentTables.map((table) => {
-              const colors = getTableColor(table.status);
+              const activeOrder = table.orders && table.orders.length > 0 ? table.orders[0] : null;
+              const isOccupied = activeOrder !== null;
+              const colors = getTableColor(isOccupied ? 'OCCUPIED' : 'AVAILABLE');
+
               return (
                 <div key={table.id} className="relative group">
                   <button
@@ -249,14 +260,27 @@ export default function TablePage() {
                     disabled={isManageMode}
                     className={`w-full h-32 rounded-xl flex flex-col items-center justify-center shadow-sm border-2 transition-all transform hover:scale-105 hover:shadow-md ${colors.bg} ${colors.border} ${isManageMode ? 'cursor-default' : ''}`}
                   >
-                    <UserGroupIcon className={`h-8 w-8 mb-2 ${colors.text}`} />
+                    <UserGroupIcon className={`h-6 w-6 mb-2 ${colors.text}`} />
                     <span className={`text-lg font-bold ${colors.text}`}>{table.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full mt-1 ${colors.badge}`}>
-                      {table.status === 'AVAILABLE' ? 'Trống' : 'Có khách'}
-                    </span>
+                    
+                    {activeOrder ? (
+                      <>
+                        <span className={`text-sm font-semibold ${colors.text} mt-1`}>
+                          {formatCurrency(activeOrder.totalAmount)}
+                        </span>
+                        <span className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
+                          <ClockIcon className="h-3 w-3" />
+                          {getDuration(activeOrder.createdAt)}
+                        </span>
+                        <div className="absolute top-2 right-2 w-3 h-3 bg-orange-500 rounded-full animate-pulse" />
+                      </>
+                    ) : (
+                      <span className={`text-xs px-2 py-0.5 rounded-full mt-1 ${colors.badge}`}>
+                        Trống
+                      </span>
+                    )}
                   </button>
 
-                  {/* Delete table button (manage mode) */}
                   {isManageMode && (
                     <button
                       onClick={() => handleDeleteTable(table.id)}
@@ -269,7 +293,6 @@ export default function TablePage() {
               );
             })}
 
-            {/* Add Table Button (manage mode) */}
             {isManageMode && activeZoneId && (
               <button
                 onClick={() => setShowTableModal(true)}
@@ -280,7 +303,6 @@ export default function TablePage() {
               </button>
             )}
 
-            {/* Takeaway Button */}
             {!isManageMode && (
               <button
                 onClick={handleTakeaway}
@@ -296,7 +318,6 @@ export default function TablePage() {
           </div>
         )}
 
-        {/* Legend */}
         {!isManageMode && zones.length > 0 && (
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-gray-600">
             <div className="flex items-center gap-2">
@@ -315,7 +336,7 @@ export default function TablePage() {
         )}
       </div>
 
-      {/* Create Zone Modal */}
+      {/* Modals */}
       <Modal isOpen={showZoneModal} onClose={() => setShowZoneModal(false)} title="Thêm khu vực mới" size="sm">
         <form onSubmit={handleCreateZone} className="space-y-4">
           <Input
@@ -327,17 +348,12 @@ export default function TablePage() {
             autoFocus
           />
           <ModalFooter>
-            <Button type="button" variant="secondary" onClick={() => setShowZoneModal(false)}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary">
-              Tạo khu vực
-            </Button>
+            <Button type="button" variant="secondary" onClick={() => setShowZoneModal(false)}>Hủy</Button>
+            <Button type="submit" variant="primary">Tạo khu vực</Button>
           </ModalFooter>
         </form>
       </Modal>
 
-      {/* Create Table Modal */}
       <Modal isOpen={showTableModal} onClose={() => setShowTableModal(false)} title="Thêm bàn mới" size="sm">
         <form onSubmit={handleCreateTable} className="space-y-4">
           <Input
@@ -352,12 +368,8 @@ export default function TablePage() {
             Khu vực: <span className="font-medium text-gray-900">{currentZone?.name}</span>
           </p>
           <ModalFooter>
-            <Button type="button" variant="secondary" onClick={() => setShowTableModal(false)}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary">
-              Tạo bàn
-            </Button>
+            <Button type="button" variant="secondary" onClick={() => setShowTableModal(false)}>Hủy</Button>
+            <Button type="submit" variant="primary">Tạo bàn</Button>
           </ModalFooter>
         </form>
       </Modal>

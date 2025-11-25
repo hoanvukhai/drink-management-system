@@ -1,7 +1,6 @@
-// frontend/src/features/pos/pages/POSPage.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table } from '../../../lib/api';
+import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table, Order } from '../../../lib/api';
 import { formatCurrency, getInitials } from '../../../lib/utils';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -18,6 +17,7 @@ import {
   MapPinIcon,
   ShoppingBagIcon,
   ChatBubbleLeftIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface CartItem extends Product {
@@ -36,6 +36,9 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // 👇 NEW: Existing order state
+  const [existingOrder, setExistingOrder] = useState<Order | null>(null);
   
   // Note modal
   const [noteItemId, setNoteItemId] = useState<number | null>(null);
@@ -61,10 +64,38 @@ export default function POSPage() {
         const tablesRes = await tablesAPI.getAll();
         const foundTable = tablesRes.data.find((t) => t.id === Number(tableId));
         setTable(foundTable || null);
+        
+        // 👇 Load active order
+        loadActiveOrder();
       }
     } catch (error) {
       console.error(error);
       toast.error('Không thể tải dữ liệu menu');
+    }
+  };
+
+  // 👇 NEW: Load active order của bàn này
+  const loadActiveOrder = async () => {
+    if (!tableId || isTakeaway) return;
+    
+    try {
+      const response = await ordersAPI.getActiveOrderByTable(Number(tableId));
+      if (response.data) {
+        setExistingOrder(response.data);
+        
+        // Load items vào cart
+        const cartItems: CartItem[] = response.data.items.map((item) => ({
+          ...item.product,
+          quantity: item.quantity,
+          note: item.note,
+        }));
+        setCart(cartItems);
+        
+        toast.success('Đã tải đơn hàng hiện tại', { duration: 2000 });
+      }
+    } catch (error) {
+      // Không có order -> Bàn trống, không cần báo lỗi
+      console.log('No active order found');
     }
   };
 
@@ -94,6 +125,7 @@ export default function POSPage() {
   };
 
   const clearCart = () => {
+    if (!confirm('Xóa toàn bộ giỏ hàng?')) return;
     setCart([]);
     toast.success('Đã xóa giỏ hàng');
   };
@@ -114,11 +146,15 @@ export default function POSPage() {
     }
   };
 
-  const handleCheckout = async () => {
+  // 👇 UPDATED: Lưu món (Tạo mới hoặc Gọi thêm)
+  const handleSaveOrder = async () => {
     if (cart.length === 0) {
       toast.error('Giỏ hàng trống!');
       return;
     }
+
+    const action = existingOrder ? 'Lưu món' : 'Tạo đơn hàng';
+    if (!confirm(`${action} cho bàn này?`)) return;
 
     setIsLoading(true);
     try {
@@ -131,20 +167,34 @@ export default function POSPage() {
         tableId: isTakeaway ? null : Number(tableId),
       });
 
-      // Update table status to OCCUPIED if not takeaway
-      if (!isTakeaway && tableId) {
-        await tablesAPI.updateStatus(Number(tableId), 'OCCUPIED');
-      }
-
-      toast.success('Tạo đơn hàng thành công!');
-      setCart([]);
-      setIsCartOpen(false);
+      toast.success(existingOrder ? 'Đã thêm món!' : 'Tạo đơn hàng thành công!');
       
-      // Navigate back to table page
+      // Reload để cập nhật
+      setCart([]);
+      await loadActiveOrder();
+      setIsCartOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error('Có lỗi xảy ra');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 👇 NEW: Thanh toán & Trả bàn
+  const handleCompleteOrder = async () => {
+    if (!existingOrder) return;
+    
+    if (!confirm(`Thanh toán ${formatCurrency(existingOrder.totalAmount)} và trả bàn?`)) return;
+    
+    setIsLoading(true);
+    try {
+      await ordersAPI.updateStatus(existingOrder.id, 'COMPLETED');
+      toast.success('Đã thanh toán và trả bàn!');
       navigate('/tables');
     } catch (error) {
       console.error(error);
-      toast.error('Tạo đơn hàng thất bại');
+      toast.error('Có lỗi xảy ra');
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +233,9 @@ export default function POSPage() {
                   <MapPinIcon className="h-6 w-6 text-indigo-600" />
                   <div>
                     <h1 className="text-lg font-bold text-gray-900">{table?.name || `Bàn ${tableId}`}</h1>
-                    <p className="text-xs text-gray-500">{table?.zone?.name || 'Đang tải...'}</p>
+                    <p className="text-xs text-gray-500">
+                      {existingOrder ? '🟢 Đang phục vụ' : 'Bàn trống'} • {table?.zone?.name || 'Đang tải...'}
+                    </p>
                   </div>
                 </>
               )}
@@ -319,10 +371,21 @@ export default function POSPage() {
             <Button variant="secondary" onClick={clearCart} className="flex-1">
               <TrashIcon className="h-5 w-5" />
             </Button>
-            <Button variant="primary" onClick={handleCheckout} isLoading={isLoading} disabled={cart.length === 0} className="flex-[2]">
-              Thanh toán
+            <Button variant="primary" onClick={handleSaveOrder} isLoading={isLoading} disabled={cart.length === 0} className="flex-[2]">
+              {existingOrder ? 'Lưu món' : 'Tạo đơn'}
             </Button>
           </div>
+          {existingOrder && (
+            <Button
+              variant="success"
+              onClick={handleCompleteOrder}
+              isLoading={isLoading}
+              className="w-full"
+              leftIcon={<CheckCircleIcon className="h-5 w-5" />}
+            >
+              Thanh toán & Trả bàn
+            </Button>
+          )}
         </SheetFooter>
       </Sheet>
 
@@ -338,6 +401,11 @@ export default function POSPage() {
                 </button>
               )}
             </div>
+            {existingOrder && (
+              <div className="mt-2 px-3 py-1.5 bg-green-50 rounded-lg">
+                <p className="text-xs text-green-700 font-medium">🟢 Đang phục vụ bàn này</p>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -383,14 +451,33 @@ export default function POSPage() {
             )}
           </div>
 
-          <div className="p-6 border-t border-gray-200 space-y-4">
+          <div className="p-6 border-t border-gray-200 space-y-3">
             <div className="flex justify-between items-center text-xl font-bold">
               <span>Tổng cộng:</span>
               <span className="text-indigo-600">{formatCurrency(total)}</span>
             </div>
-            <Button variant="primary" size="lg" onClick={handleCheckout} isLoading={isLoading} disabled={cart.length === 0} className="w-full">
-              Thanh toán ({itemCount} món)
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleSaveOrder}
+              isLoading={isLoading}
+              disabled={cart.length === 0}
+              className="w-full"
+            >
+              {existingOrder ? `Lưu món (${itemCount})` : `Tạo đơn (${itemCount})`}
             </Button>
+            {existingOrder && (
+              <Button
+                variant="success"
+                size="lg"
+                onClick={handleCompleteOrder}
+                isLoading={isLoading}
+                className="w-full"
+                leftIcon={<CheckCircleIcon className="h-5 w-5" />}
+              >
+                Thanh toán & Trả bàn
+              </Button>
+            )}
           </div>
         </div>
       </div>
