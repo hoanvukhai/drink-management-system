@@ -6,6 +6,7 @@ import {
 import { CreateOrderDto, AddItemsDto } from './dto/create-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrderStatus, TableStatus } from '@prisma/client'; // 👈 Import enums
+import { EditOrderItemDto } from './dto/update-order.dto';
 
 @Injectable()
 export class OrdersService {
@@ -415,5 +416,132 @@ export class OrdersService {
         items: { include: { product: true } },
       },
     });
+  }
+
+  async editItem(orderId: number, itemId: number, dto: EditOrderItemDto) {
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: itemId },
+      include: { order: true, product: true },
+    });
+
+    if (!item || item.orderId !== orderId) {
+      throw new NotFoundException('Order item not found');
+    }
+
+    // Không cho sửa món đã mang ra
+    if (item.isServed) {
+      throw new BadRequestException('Cannot edit served item');
+    }
+
+    // Lưu giá trị cũ
+    const oldValue = JSON.stringify({
+      quantity: item.quantity,
+      note: item.note,
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      let newValue: string | null = null;
+
+      if (dto.action === 'DELETE') {
+        // Xóa món
+        await tx.orderItem.delete({ where: { id: itemId } });
+        newValue = null;
+      } else if (dto.action === 'UPDATE_QUANTITY' && dto.newQuantity) {
+        const updatedItem = await tx.orderItem.update({
+          where: { id: itemId },
+          data: { quantity: dto.newQuantity },
+        });
+        newValue = JSON.stringify({
+          quantity: updatedItem.quantity,
+          note: updatedItem.note,
+        });
+      } else if (dto.action === 'UPDATE_NOTE') {
+        const updatedItem = await tx.orderItem.update({
+          where: { id: itemId },
+          data: { note: dto.newNote || null },
+        });
+        newValue = JSON.stringify({
+          quantity: updatedItem.quantity,
+          note: updatedItem.note,
+        });
+      }
+
+      // Lưu log chỉnh sửa
+      await tx.orderItemEdit.create({
+        data: {
+          orderItemId: itemId,
+          action: dto.action,
+          oldValue,
+          newValue,
+          reason: dto.reason,
+          userId: dto.userId,
+        },
+      });
+
+      // Cập nhật tổng tiền
+      const allItems = await tx.orderItem.findMany({ where: { orderId } });
+      const newTotal = allItems.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0,
+      );
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { totalAmount: newTotal },
+      });
+
+      return tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: { include: { product: true } },
+          table: { include: { zone: true } },
+        },
+      });
+    });
+  }
+
+  async markItemCompleted(orderId: number, itemId: number) {
+    return this.prisma.orderItem.update({
+      where: { id: itemId },
+      data: {
+        isCompleted: true,
+        completedAt: new Date(),
+      },
+    });
+  }
+
+  async getEditHistory(orderId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: true,
+            edits: {
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order #${orderId} not found`);
+    }
+
+    // Tổng hợp tất cả edits
+    const allEdits = order.items.flatMap((item) =>
+      item.edits.map((edit) => ({
+        ...edit,
+        itemId: item.id,
+        itemName: item.product.name,
+        itemPrice: item.price,
+      })),
+    );
+
+    return allEdits.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 }

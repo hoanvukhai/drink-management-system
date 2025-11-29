@@ -9,9 +9,20 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ZonesModule } from './zones/zones.module';
 import { TablesModule } from './tables/tables.module';
+import { RecipesModule } from './recipes/recipes.module';
 
 @Module({
-  imports: [CategoriesModule, ProductModule, PrismaModule, OrdersModule, AuthModule, UsersModule, ZonesModule, TablesModule],
+  imports: [
+    CategoriesModule,
+    ProductModule,
+    PrismaModule,
+    OrdersModule,
+    AuthModule,
+    UsersModule,
+    ZonesModule,
+    TablesModule,
+    RecipesModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

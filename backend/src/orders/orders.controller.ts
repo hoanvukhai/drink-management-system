@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, AddItemsDto } from './dto/create-order.dto';
+import { EditOrderItemDto } from './dto/update-order.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -86,5 +87,27 @@ export class OrdersController {
   @Get()
   findAll() {
     return this.ordersService.findAll();
+  }
+
+  @Patch(':orderId/items/:itemId/edit')
+  editItem(
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() dto: EditOrderItemDto,
+  ) {
+    return this.ordersService.editItem(orderId, itemId, dto);
+  }
+
+  @Patch(':orderId/items/:itemId/complete')
+  markItemCompleted(
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.ordersService.markItemCompleted(orderId, itemId);
+  }
+
+  @Get(':orderId/edits')
+  getEditHistory(@Param('orderId', ParseIntPipe) orderId: number) {
+    return this.ordersService.getEditHistory(orderId);
   }
 }

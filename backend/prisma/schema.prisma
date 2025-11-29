@@ -54,6 +54,7 @@ model Product {
   orderItems  OrderItem[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  recipe      Recipe?
 }
 
 model Zone {
@@ -115,5 +116,56 @@ model OrderItem {
   isServed    Boolean  @default(false) // 👈 Đã mang ra chưa?
   createdAt   DateTime @default(now())
   
+  isCompleted Boolean  @default(false) // Pha chế xong chưa?
+  completedAt DateTime?                // Thời gian hoàn thành
+  edits       OrderItemEdit[]          // Lịch sử sửa
   @@index([orderId])
+}
+
+model Recipe {
+  id          Int               @id @default(autoincrement())
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   Int               @unique
+  description String?           // Mô tả chung
+  steps       RecipeStep[]
+  ingredients RecipeIngredient[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model RecipeStep {
+  id          Int      @id @default(autoincrement())
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId    Int
+  stepNumber  Int      // 1, 2, 3...
+  instruction String   // "Cho 30ml syrup vào ly"
+  createdAt   DateTime @default(now())
+
+  @@index([recipeId])
+}
+
+model RecipeIngredient {
+  id          Int      @id @default(autoincrement())
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId    Int
+  name        String   // "Syrup dâu", "Trân châu"
+  quantity    String   // "30ml", "50g"
+  note        String?  // "Có thể điều chỉnh theo khách"
+  createdAt   DateTime @default(now())
+
+  @@index([recipeId])
+}
+
+model OrderItemEdit {
+  id          Int      @id @default(autoincrement())
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId Int
+  action      String   // "DELETE", "UPDATE_QUANTITY", "UPDATE_NOTE"
+  oldValue    String?  // JSON string của giá trị cũ
+  newValue    String?  // JSON string của giá trị mới
+  reason      String   // Lý do bắt buộc
+  userId      Int?     // Ai chỉnh sửa
+  createdAt   DateTime @default(now())
+
+  @@index([orderItemId])
 }
