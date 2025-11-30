@@ -65,6 +65,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       icon: UserGroupIcon,
       roles: ['ADMIN', 'MANAGER'],
     },
+    {
+      name: 'Quản lý Công thức',
+      href: '/recipes',
+      icon: ClipboardDocumentListIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
   ];
 
   const filteredNav = navigation.filter((item) =>

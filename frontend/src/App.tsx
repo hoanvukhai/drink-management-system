@@ -14,6 +14,7 @@ import OrderHistoryPage from './features/orders/pages/OrderHistoryPage';
 import MenuManagementPage from './features/menu/pages/MenuManagementPage';
 import StaffManagementPage from './features/staff/pages/StaffManagementPage';
 import ZonesManagementPage from './features/zones/pages/ZonesManagementPage';
+import RecipeManagementPage from './features/recipes/pages/RecipeManagementPage';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
               <Route path="/menu" element={<MenuManagementPage />} />
               <Route path="/zones" element={<ZonesManagementPage />} />
               <Route path="/staff" element={<StaffManagementPage />} />
+              <Route path="/recipes" element={<RecipeManagementPage />} />
             </Route>
           </Route>
         </Route>

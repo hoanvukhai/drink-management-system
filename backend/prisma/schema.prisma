@@ -9,8 +9,8 @@ datasource db {
 
 enum Role {
   EMPLOYEE
-  MANAGER   
-  ADMIN      
+  MANAGER
+  ADMIN
 }
 
 // 👇 Trạng thái Order đơn giản
