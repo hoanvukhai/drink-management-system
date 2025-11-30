@@ -501,11 +501,20 @@ export class OrdersService {
   }
 
   async markItemCompleted(orderId: number, itemId: number) {
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: itemId },
+    });
+
+    if (!item || item.orderId !== orderId) {
+      throw new NotFoundException('Order item not found');
+    }
+
+    // 👇 SỬA: Cho phép toggle on/off
     return this.prisma.orderItem.update({
       where: { id: itemId },
       data: {
-        isCompleted: true,
-        completedAt: new Date(),
+        isCompleted: !item.isCompleted, // Toggle
+        completedAt: !item.isCompleted ? new Date() : null, // Set hoặc clear
       },
     });
   }

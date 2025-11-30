@@ -1,4 +1,4 @@
-// frontend/src/lib/api.ts
+// frontend/src/lib/api.ts - UPDATED VERSION
 import axios from 'axios';
 
 const API_URL = 'http://localhost:3000';
@@ -87,6 +87,8 @@ export interface OrderItem {
   price: number;
   note?: string;
   isServed: boolean;
+  isCompleted: boolean; // 👈 NEW
+  completedAt?: string; // 👈 NEW
   productId: number;
   product: Product;
   createdAt: string;
@@ -124,6 +126,72 @@ export interface LoginCredentials {
 export interface RegisterData extends LoginCredentials {
   name?: string;
   role?: User['role'];
+}
+
+// 👇 NEW: Recipe Types
+export interface RecipeIngredient {
+  id: number;
+  name: string;
+  quantity: string;
+  note?: string;
+}
+
+export interface RecipeStep {
+  id: number;
+  stepNumber: number;
+  instruction: string;
+}
+
+export interface Recipe {
+  id: number;
+  productId: number;
+  description?: string;
+  ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
+  product: {
+    id: number;
+    name: string;
+    price: number;
+  };
+}
+
+export interface CreateRecipeInput {
+  productId: number;
+  description?: string;
+  ingredients: Array<{
+    name: string;
+    quantity: string;
+    note?: string;
+  }>;
+  steps: Array<{
+    stepNumber: number;
+    instruction: string;
+  }>;
+}
+
+// 👇 NEW: Edit Tracking Types
+export type EditAction = 'DELETE' | 'UPDATE_QUANTITY' | 'UPDATE_NOTE';
+
+export interface OrderItemEdit {
+  id: number;
+  orderItemId: number;
+  action: EditAction;
+  oldValue?: string;
+  newValue?: string;
+  reason: string;
+  userId?: number;
+  createdAt: string;
+  itemId?: number;
+  itemName?: string;
+  itemPrice?: number;
+}
+
+export interface EditOrderItemInput {
+  action: EditAction;
+  newQuantity?: number;
+  newNote?: string;
+  reason: string;
+  userId?: number;
 }
 
 // ============================================
@@ -191,6 +259,18 @@ export const ordersAPI = {
   markItemServed: (orderId: number, itemId: number) =>
     apiClient.patch<Order>(`/orders/${orderId}/items/${itemId}/served`),
   
+  // 👇 NEW: Kitchen: Mark item completed
+  markItemCompleted: (orderId: number, itemId: number) =>
+    apiClient.patch<OrderItem>(`/orders/${orderId}/items/${itemId}/complete`),
+  
+  // 👇 NEW: Edit item (delete/update quantity/note)
+  editItem: (orderId: number, itemId: number, data: EditOrderItemInput) =>
+    apiClient.patch<Order>(`/orders/${orderId}/items/${itemId}/edit`, data),
+  
+  // 👇 NEW: Get edit history
+  getEditHistory: (orderId: number) =>
+    apiClient.get<OrderItemEdit[]>(`/orders/${orderId}/edits`),
+  
   // Move table
   moveTable: (orderId: number, newTableId: number) =>
     apiClient.patch<Order>(`/orders/${orderId}/move`, { newTableId }),
@@ -220,4 +300,26 @@ export const usersAPI = {
   update: (id: number, data: Partial<Omit<User, 'id' | 'username'>> & { password?: string }) =>
     apiClient.patch<User>(`/users/${id}`, data),
   delete: (id: number) => apiClient.delete(`/users/${id}`),
+};
+
+// 👇 NEW: Recipe APIs
+export const recipesAPI = {
+  // Get all recipes
+  getAll: () => apiClient.get<Recipe[]>('/recipes'),
+  
+  // Get recipe by product ID
+  getByProduct: (productId: number) => 
+    apiClient.get<Recipe>(`/recipes/product/${productId}`),
+  
+  // Create recipe
+  create: (data: CreateRecipeInput) =>
+    apiClient.post<Recipe>('/recipes', data),
+  
+  // Update recipe
+  update: (id: number, data: Partial<CreateRecipeInput>) =>
+    apiClient.patch<Recipe>(`/recipes/${id}`, data),
+  
+  // Delete recipe
+  delete: (id: number) =>
+    apiClient.delete<{ message: string; id: number }>(`/recipes/${id}`),
 };

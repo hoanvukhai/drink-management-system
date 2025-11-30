@@ -1,4 +1,4 @@
-// frontend/src/features/main/pages/MainPage.tsx
+// frontend/src/features/main/pages/MainPage.tsx - SỬA ROUTING
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { zonesAPI, ordersAPI, Zone, Order } from '../../../lib/api';
@@ -43,6 +43,7 @@ export default function MainPage() {
     }
   };
 
+  // 👇 SỬA: Đúng route là /table/:id
   const handleTableClick = (tableId: number) => {
     navigate(`/table/${tableId}`);
   };
@@ -106,10 +107,10 @@ export default function MainPage() {
     );
   }
 
-return (
+  return (
     <div className="min-h-screen bg-gray-50">
       <div className="container-custom py-6">
-        {/* Header - Giữ nguyên */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="page-title flex items-center gap-2">
@@ -125,7 +126,7 @@ return (
           </Button>
         </div>
 
-        {/* Statistics - Giữ nguyên */}
+        {/* Statistics */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Card padding="md">
             <div className="text-center">
@@ -157,7 +158,7 @@ return (
           </Card>
         </div>
 
-        {/* 🔥 1. SỬA THANH TAB: Thêm nút "Mang về" (-1) */}
+        {/* Tabs */}
         <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
           <button
             onClick={() => setSelectedZoneId(null)}
@@ -170,7 +171,6 @@ return (
             Tất cả
           </button>
           
-          {/* Loop các Zone */}
           {zones.map((zone) => (
             <button
               key={zone.id}
@@ -185,7 +185,6 @@ return (
             </button>
           ))}
 
-          {/* Nút Mang về riêng biệt */}
           <button
             onClick={() => setSelectedZoneId(-1)}
             className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
@@ -198,14 +197,11 @@ return (
           </button>
         </div>
 
-        {/* 🔥 2. SỬA PHẦN HIỂN THỊ NỘI DUNG */}
+        {/* Content */}
         <div className="space-y-8">
           
-          {/* PHẦN A: Hiển thị các Zone (Bàn ăn) */}
+          {/* Zones */}
           {zones.map((zone) => {
-            // Logic ẩn hiện Zone:
-            // 1. Nếu đang chọn tab "Mang về" (-1) -> Ẩn hết Zone
-            // 2. Nếu đang chọn 1 Zone cụ thể -> Ẩn các Zone khác
             if (selectedZoneId === -1) return null;
             if (selectedZoneId !== null && selectedZoneId !== zone.id) return null;
 
@@ -221,7 +217,6 @@ return (
                   </span>
                 </div>
                 
-                {/* Grid bàn ăn - Giữ nguyên logic cũ */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {zone.tables.map((table) => {
                     const order = getTableOrder(table.id);
@@ -260,8 +255,7 @@ return (
             );
           })}
 
-          {/* PHẦN B: Hiển thị phần Mang về */}
-          {/* Logic: Chỉ hiện khi chọn "Tất cả" (null) HOẶC "Mang về" (-1) */}
+          {/* Takeaway */}
           {(selectedZoneId === null || selectedZoneId === -1) && (
             <div>
               <div className="flex items-center justify-between mb-4 pt-4 border-t border-gray-200">
@@ -275,7 +269,6 @@ return (
                 </Button>
               </div>
 
-              {/* Grid đơn mang về - Giữ nguyên logic cũ */}
               {getTakeawayOrders().length === 0 ? (
                 <Card padding="md">
                   <div className="text-center py-8 text-gray-500">
@@ -326,4 +319,5 @@ return (
         </div>
       </div>
     </div>
-  );}
+  );
+}

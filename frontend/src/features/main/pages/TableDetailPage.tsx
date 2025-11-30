@@ -1,11 +1,12 @@
-// frontend/src/features/main/pages/TableDetailPage.tsx
+// frontend/src/features/main/pages/TableDetailPage.tsx - UPDATED
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table, Order } from '../../../lib/api';
+import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table, Order, OrderItem } from '../../../lib/api';
 import { formatCurrency, getInitials } from '../../../lib/utils';
 import { Button } from '../../../components/ui/Button';
 import { Input, Select } from '../../../components/ui/Input';
 import toast from 'react-hot-toast';
+import EditOrderItemModal from '../components/EditOrderItemModal';
 import {
   XMarkIcon,
   PlusIcon,
@@ -17,6 +18,7 @@ import {
   MapPinIcon,
   ArrowLeftIcon,
   ShoppingCartIcon,
+  PencilIcon,
 } from '@heroicons/react/24/outline';
 
 interface CartItem extends Product {
@@ -41,6 +43,9 @@ export default function TableDetailPage() {
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   
+  // 👇 NEW: Edit modal
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  
   // Move table
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [allTables, setAllTables] = useState<Table[]>([]);
@@ -62,7 +67,6 @@ export default function TableDetailPage() {
       setCategories(categoriesRes.data);
       setAllTables(tablesRes.data);
       
-      // Load table info
       const foundTable = tablesRes.data.find((t) => t.id === Number(tableId));
       setTable(foundTable || null);
       
@@ -74,7 +78,6 @@ export default function TableDetailPage() {
             setActiveOrder(orderRes.data);
           }
         } catch (error) {
-          // No active order
           console.log('No active order');
         }
       }
@@ -151,11 +154,9 @@ export default function TableDetailPage() {
       }));
 
       if (activeOrder) {
-        // Add items to existing order
         await ordersAPI.addItems(activeOrder.id, items);
         toast.success('Đã gọi thêm món!');
       } else {
-        // Create new order
         await ordersAPI.create({
           items,
           tableId: Number(tableId),
@@ -171,6 +172,37 @@ export default function TableDetailPage() {
       toast.error('Có lỗi xảy ra');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 👇 NEW: Handle edit existing item
+  const handleEditExistingItem = (item: any) => {
+    setEditingItem(item);
+  };
+
+  const handleSaveEdit = async (action: string, data: any, reason: string) => {
+    if (!editingItem || !activeOrder) return;
+
+    try {
+      await ordersAPI.editItem(activeOrder.id, editingItem.id, {
+        action,
+        ...data,
+        reason,
+      });
+
+      toast.success(
+        action === 'DELETE'
+          ? 'Đã xóa món'
+          : action === 'UPDATE_QUANTITY'
+          ? 'Đã cập nhật số lượng'
+          : 'Đã cập nhật ghi chú'
+      );
+
+      await fetchData();
+      setEditingItem(null);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     }
   };
 
@@ -337,20 +369,34 @@ export default function TableDetailPage() {
 
           {/* Active Order Items */}
           {activeOrder && (
-            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
+            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50 max-h-64 overflow-y-auto">
               <p className="text-sm font-semibold text-yellow-800 mb-2">
                 ✓ Đã gọi ({activeOrder.items.length} món)
               </p>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
+              <div className="space-y-2">
                 {activeOrder.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-700">
-                      {item.quantity}x {item.product.name}
-                      {item.note && ` (${item.note})`}
-                    </span>
-                    <span className="font-medium">
-                      {formatCurrency(item.price * item.quantity)}
-                    </span>
+                  <div key={item.id} className="flex items-center justify-between text-xs bg-white rounded p-2">
+                    <div className="flex-1">
+                      <span className="text-gray-700">
+                        {item.quantity}x {item.product.name}
+                        {item.note && ` (${item.note})`}
+                      </span>
+                      {item.isServed && (
+                        <span className="ml-2 text-green-600">✓</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {formatCurrency(item.price * item.quantity)}
+                      </span>
+                      <button
+                        onClick={() => handleEditExistingItem(item)}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                        title="Sửa món"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -498,6 +544,14 @@ export default function TableDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Order Item Modal */}
+      <EditOrderItemModal
+        item={editingItem}
+        isOpen={!!editingItem}
+        onClose={() => setEditingItem(null)}
+        onSave={handleSaveEdit}
+      />
 
       {/* Move Table Modal */}
       {showMoveModal && (

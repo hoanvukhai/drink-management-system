@@ -1,4 +1,4 @@
-// frontend/src/App.tsx
+// frontend/src/App.tsx - KIỂM TRA ROUTES
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './features/auth/hooks/useAuth';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -7,7 +7,7 @@ import { MainLayout } from './components/layout/MainLayout';
 // Pages
 import LoginPage from './features/auth/pages/LoginPage';
 import MainPage from './features/main/pages/MainPage';
-import TableDetailPage from './features/main/pages/TableDetailPage';
+import TableDetailPage from './features/main/pages/TableDetailPage'; // 👈 Đúng import
 import TakeawayPage from './features/main/pages/TakeawayPage';
 import KitchenPage from './features/kitchen/pages/KitchenPage';
 import OrderHistoryPage from './features/orders/pages/OrderHistoryPage';
@@ -25,14 +25,14 @@ function App() {
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            {/* Default redirect -> Main */}
+            {/* Default redirect */}
             <Route path="/" element={<Navigate to="/main" replace />} />
 
-            {/* 🔥 Main Tabs */}
+            {/* Main Tabs */}
             <Route path="/main" element={<MainPage />} />
             <Route path="/kitchen" element={<KitchenPage />} />
 
-            {/* Table Detail & Takeaway */}
+            {/* 👇 QUAN TRỌNG: Route này phải đúng */}
             <Route path="/table/:tableId" element={<TableDetailPage />} />
             <Route path="/takeaway" element={<TakeawayPage />} />
 
