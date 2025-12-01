@@ -1,26 +1,61 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateInventoryCategoryDto } from './dto/create-inventory-category.dto';
 import { UpdateInventoryCategoryDto } from './dto/update-inventory-category.dto';
 
 @Injectable()
 export class InventoryCategoriesService {
-  create(createInventoryCategoryDto: CreateInventoryCategoryDto) {
-    return 'This action adds a new inventoryCategory';
+  constructor(private prisma: PrismaService) {}
+
+  create(dto: CreateInventoryCategoryDto) {
+    return this.prisma.inventoryCategory.create({
+      data: dto,
+    });
   }
 
   findAll() {
-    return `This action returns all inventoryCategories`;
+    return this.prisma.inventoryCategory.findMany({
+      include: {
+        items: {
+          select: {
+            id: true,
+            name: true,
+            currentStock: true,
+            minStock: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} inventoryCategory`;
+  async findOne(id: number) {
+    const category = await this.prisma.inventoryCategory.findUnique({
+      where: { id },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException(`Inventory category #${id} not found`);
+    }
+
+    return category;
   }
 
-  update(id: number, updateInventoryCategoryDto: UpdateInventoryCategoryDto) {
-    return `This action updates a #${id} inventoryCategory`;
+  async update(id: number, dto: UpdateInventoryCategoryDto) {
+    await this.findOne(id);
+    return this.prisma.inventoryCategory.update({
+      where: { id },
+      data: dto,
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} inventoryCategory`;
+  async remove(id: number) {
+    await this.findOne(id);
+    return this.prisma.inventoryCategory.delete({
+      where: { id },
+    });
   }
 }

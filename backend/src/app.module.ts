@@ -16,6 +16,8 @@ import { ConsumptionTrackingModule } from './consumption-tracking/consumption-tr
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { StockTakesModule } from './stock-takes/stock-takes.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { ShiftsModule } from './shifts/shifts.module';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { StockTakesModule } from './stock-takes/stock-takes.module';
     SuppliersModule,
     PurchaseOrdersModule,
     StockTakesModule,
+    AttendanceModule,
+    ShiftsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,26 +1,65 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
 @Injectable()
 export class SuppliersService {
-  create(createSupplierDto: CreateSupplierDto) {
-    return 'This action adds a new supplier';
+  constructor(private prisma: PrismaService) {}
+
+  create(dto: CreateSupplierDto) {
+    return this.prisma.supplier.create({
+      data: dto,
+    });
   }
 
   findAll() {
-    return `This action returns all suppliers`;
+    return this.prisma.supplier.findMany({
+      include: {
+        purchaseOrders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            totalAmount: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} supplier`;
+  async findOne(id: number) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id },
+      include: {
+        purchaseOrders: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!supplier) {
+      throw new NotFoundException(`Supplier #${id} not found`);
+    }
+
+    return supplier;
   }
 
-  update(id: number, updateSupplierDto: UpdateSupplierDto) {
-    return `This action updates a #${id} supplier`;
+  async update(id: number, dto: UpdateSupplierDto) {
+    await this.findOne(id);
+    return this.prisma.supplier.update({
+      where: { id },
+      data: dto,
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} supplier`;
+  async remove(id: number) {
+    await this.findOne(id);
+    return this.prisma.supplier.delete({
+      where: { id },
+    });
   }
 }
