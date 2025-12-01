@@ -1,3 +1,4 @@
+// backend/prisma/schema.prisma - ĐƠN GIẢN CHO QUÁN NHỎ
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,18 +8,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =====================================================
+// ENUMS
+// =====================================================
 enum Role {
-  EMPLOYEE
-  MANAGER
-  ADMIN
+  EMPLOYEE  // Nhân viên
+  MANAGER   // Chủ quán / Quản lý
+  ADMIN     // Hệ thống (Developer)
 }
 
-// 👇 Trạng thái Order đơn giản
 enum OrderStatus {
-  PENDING    // Đang chờ pha chế
-  READY      // Đã pha xong, chờ mang ra
-  SERVED     // Đã mang ra cho khách
-  COMPLETED  // Đã thanh toán
+  PENDING      // Đang pha chế
+  READY        // Sẵn sàng
+  SERVED       // Đã mang ra
+  COMPLETED    // Đã thanh toán
 }
 
 enum TableStatus {
@@ -26,16 +29,58 @@ enum TableStatus {
   OCCUPIED
 }
 
+// ✅ ĐƠN GIẢN HÓA: Chỉ cần 3 trạng thái
+enum PurchaseOrderStatus {
+  DRAFT        // Nháp
+  COMPLETED    // Đã nhập kho (Không cần duyệt)
+  CANCELLED    // Đã hủy
+}
+
+enum InventoryTransactionType {
+  PURCHASE         // Nhập kho
+  ADJUSTMENT       // Điều chỉnh thủ công
+  WASTE           // Hao hụt
+  STOCKTAKE       // Kiểm kê
+}
+
+// ✅ ĐƠN GIẢN HÓA: Không cần APPROVED
+enum StockTakeStatus {
+  IN_PROGRESS  // Đang kiểm
+  COMPLETED    // Hoàn thành (Tự động điều chỉnh kho)
+  CANCELLED    // Đã hủy
+}
+
+enum ShiftStatus {
+  ASSIGNED     // Đã phân ca
+  STARTED      // Đang làm
+  ENDED        // Kết thúc
+  CANCELLED    // Đã hủy
+}
+
+// =====================================================
+// USER & AUTHENTICATION
+// =====================================================
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
   password  String
   name      String?
   role      Role     @default(EMPLOYEE)
+  
+  // Relations
+  createdOrders     Order[]          @relation("CreatedOrders")
+  purchaseOrders    PurchaseOrder[]  // Người tạo phiếu nhập
+  stockTakes        StockTake[]      // Người kiểm kê
+  attendances       Attendance[]
+  shifts            Shift[]
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+// =====================================================
+// MENU & PRODUCTS
+// =====================================================
 model Category {
   id        Int       @id @default(autoincrement())
   name      String    @unique
@@ -45,90 +90,136 @@ model Category {
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  name        String
-  price       Float
-  imageUrl    String?
-  category    Category    @relation(fields: [categoryId], references: [id])
-  categoryId  Int
-  orderItems  OrderItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  recipe      Recipe?
+  id         Int       @id @default(autoincrement())
+  name       String
+  price      Float
+  imageUrl   String?
+  category   Category  @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  available  Boolean   @default(true)
+  
+  orderItems OrderItem[]
+  recipe     Recipe?
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  
+  @@index([categoryId])
+  @@index([available])
 }
 
+// =====================================================
+// TABLES & ZONES
+// =====================================================
 model Zone {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String
   tables    Table[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Table {
-  id          Int         @id @default(autoincrement())
-  name        String
-  capacity    Int         @default(4)
-  status      TableStatus @default(AVAILABLE)
-  zone        Zone        @relation(fields: [zoneId], references: [id])
-  zoneId      Int
-  orders      Order[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        Int         @id @default(autoincrement())
+  name      String
+  capacity  Int         @default(4)
+  status    TableStatus @default(AVAILABLE)
+  zone      Zone        @relation(fields: [zoneId], references: [id])
+  zoneId    Int
+  orders    Order[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  @@index([zoneId])
+  @@index([status])
 }
 
+// =====================================================
+// ORDERS
+// =====================================================
 model Order {
-  id              Int         @id @default(autoincrement())
-  orderNumber     String      @unique // #0001
-  totalAmount     Float       @default(0)
-  status          OrderStatus @default(PENDING)
-  type            String      @default("DINE_IN") // DINE_IN | TAKEAWAY
+  id           Int         @id @default(autoincrement())
+  orderNumber  String      @unique
+  totalAmount  Float       @default(0)
+  status       OrderStatus @default(PENDING)
+  type         String      @default("DINE_IN") // DINE_IN | TAKEAWAY
   
-  // Table (null nếu mang về)
-  table           Table?      @relation(fields: [tableId], references: [id])
-  tableId         Int?
+  table        Table?      @relation(fields: [tableId], references: [id])
+  tableId      Int?
   
-  // Customer (optional cho takeaway)
-  customerName    String?
-  customerPhone   String?
+  customerName  String?
+  customerPhone String?
   
-  // Timing
-  createdAt       DateTime    @default(now())     // Thời gian tạo đơn
-  readyAt         DateTime?                       // Thời gian pha chế xong
-  servedAt        DateTime?                       // Thời gian mang ra
-  completedAt     DateTime?                       // Thời gian thanh toán
+  createdBy    User?       @relation("CreatedOrders", fields: [createdById], references: [id])
+  createdById  Int?
   
-  items           OrderItem[]
+  createdAt    DateTime    @default(now())
+  readyAt      DateTime?
+  servedAt     DateTime?
+  completedAt  DateTime?
+  
+  items        OrderItem[]
   
   @@index([status])
   @@index([tableId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([type])
 }
 
 model OrderItem {
-  id          Int      @id @default(autoincrement())
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id          Int       @id @default(autoincrement())
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId     Int
-  product     Product  @relation(fields: [productId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
   productId   Int
-  quantity    Int
-  price       Float    // Giá tại thời điểm order
-  note        String?  // Ghi chú: "Ít đường", "Nhiều đá"
-  isServed    Boolean  @default(false) // 👈 Đã mang ra chưa?
-  createdAt   DateTime @default(now())
   
-  isCompleted Boolean  @default(false) // Pha chế xong chưa?
-  completedAt DateTime?                // Thời gian hoàn thành
-  edits       OrderItemEdit[]          // Lịch sử sửa
+  quantity    Int
+  price       Float
+  note        String?
+  
+  isServed    Boolean   @default(false)
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  
+  edits       OrderItemEdit[]
+  
+  createdAt   DateTime  @default(now())
+  
   @@index([orderId])
+  @@index([productId])
+  @@index([isCompleted])
 }
 
+model OrderItemEdit {
+  id          Int       @id @default(autoincrement())
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId Int
+  
+  action      String    // DELETE | UPDATE_QUANTITY | UPDATE_NOTE
+  oldValue    String?
+  newValue    String?
+  reason      String
+  userId      Int?
+  
+  createdAt   DateTime  @default(now())
+  
+  @@index([orderItemId])
+  @@index([createdAt])
+}
+
+// =====================================================
+// RECIPES & INGREDIENTS
+// =====================================================
 model Recipe {
   id          Int               @id @default(autoincrement())
   product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId   Int               @unique
-  description String?           // Mô tả chung
+  description String?
+  
   steps       RecipeStep[]
   ingredients RecipeIngredient[]
+  
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -137,35 +228,321 @@ model RecipeStep {
   id          Int      @id @default(autoincrement())
   recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   recipeId    Int
-  stepNumber  Int      // 1, 2, 3...
-  instruction String   // "Cho 30ml syrup vào ly"
+  stepNumber  Int
+  instruction String
   createdAt   DateTime @default(now())
-
+  
   @@index([recipeId])
 }
 
 model RecipeIngredient {
-  id          Int      @id @default(autoincrement())
-  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  recipeId    Int
-  name        String   // "Syrup dâu", "Trân châu"
-  quantity    String   // "30ml", "50g"
-  note        String?  // "Có thể điều chỉnh theo khách"
-  createdAt   DateTime @default(now())
-
+  id              Int            @id @default(autoincrement())
+  recipe          Recipe         @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipeId        Int
+  
+  // Link to inventory
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  inventoryItemId Int?
+  
+  name            String
+  
+  // Hiển thị cho nhân viên
+  displayQuantity Float   // VD: 2 bơm
+  displayUnit     String  // VD: "bơm"
+  
+  // Trừ kho thực tế
+  stockQuantity   Float   // VD: 20 ml
+  stockUnit       String  // VD: "ml"
+  
+  note            String?
+  createdAt       DateTime @default(now())
+  
   @@index([recipeId])
+  @@index([inventoryItemId])
 }
 
-model OrderItemEdit {
-  id          Int      @id @default(autoincrement())
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  orderItemId Int
-  action      String   // "DELETE", "UPDATE_QUANTITY", "UPDATE_NOTE"
-  oldValue    String?  // JSON string của giá trị cũ
-  newValue    String?  // JSON string của giá trị mới
-  reason      String   // Lý do bắt buộc
-  userId      Int?     // Ai chỉnh sửa
-  createdAt   DateTime @default(now())
+// =====================================================
+// INVENTORY MANAGEMENT (ĐƠN GIẢN)
+// =====================================================
+model InventoryCategory {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique
+  description String?
+  items       InventoryItem[]
+  createdAt   DateTime        @default(now())
+  
+  @@index([name])
+}
 
-  @@index([orderItemId])
+model InventoryItem {
+  id               Int                       @id @default(autoincrement())
+  name             String
+  sku              String?                   @unique
+  baseUnit         String                    // ml, g, cái, lon, chai
+  
+  category         InventoryCategory         @relation(fields: [categoryId], references: [id])
+  categoryId       Int
+  
+  // Tồn kho
+  currentStock     Float                     @default(0)
+  minStock         Float                     @default(0)  // Cảnh báo khi < minStock
+  maxStock         Float?
+  
+  // Giá
+  lastPurchasePrice Float?
+  averageCost      Float?
+  
+  // HSD
+  hasExpiry        Boolean                   @default(false)
+  expiryDays       Int?
+  
+  // Relations
+  unitConversions    UnitConversion[]
+  recipeIngredients  RecipeIngredient[]
+  transactions       InventoryTransaction[]
+  consumptions       ConsumptionTracking[]      // ✨ THÊM
+  purchaseOrderItems PurchaseOrderItem[]
+  stockTakeItems     StockTakeItem[]
+  
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  
+  @@index([categoryId])
+  @@index([currentStock])
+  @@index([name])
+}
+
+// ✅ QUY ĐỔI ĐƠN VỊ
+model UnitConversion {
+  id              Int           @id @default(autoincrement())
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  inventoryItemId Int
+  
+  fromUnit        String        // "bơm", "thìa", "gói"
+  toUnit          String        // "ml", "g"
+  factor          Float         // 1 bơm = 10ml → factor = 10
+  
+  createdAt       DateTime      @default(now())
+  
+  @@unique([inventoryItemId, fromUnit])
+  @@index([inventoryItemId])
+}
+
+// ✅ GIAO DỊCH KHO - CHỈ NHẬP/XUẤT THỦ CÔNG
+model InventoryTransaction {
+  id            Int      @id @default(autoincrement())
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+  itemId        Int
+  
+  type          InventoryTransactionType  // PURCHASE, ADJUSTMENT, WASTE
+  quantity      Float    // + nhập, - xuất
+  unit          String
+  
+  unitCost      Float?
+  totalCost     Float?
+  
+  balanceBefore Float    // Tồn trước
+  balanceAfter  Float    // Tồn sau
+  
+  // Tham chiếu
+  purchaseOrderId Int?   // Từ phiếu nhập
+  stockTakeId     Int?   // Từ kiểm kê
+  userId          Int?   // Người thao tác
+  
+  notes         String?
+  createdAt     DateTime @default(now())
+  
+  @@index([itemId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// ✅ TIÊU HAO TÍNH TOÁN - TỰ ĐỘNG + THỦ CÔNG
+model ConsumptionTracking {
+  id          Int           @id @default(autoincrement())
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+  itemId      Int
+  
+  // Từ đơn hàng (nullable vì có thể là mất mát/hư hỏng)
+  orderId     Int?
+  productId   Int?
+  productName String?
+  
+  quantity    Float         // Số lượng (có thể ÂM nếu khách bớt)
+  unit        String
+  
+  // ✨ THÊM: Lý do & Chi phí
+  reason      String        // "SALE", "WASTE", "DAMAGED", "EXPIRED", "OTHER"
+  notes       String?       // Ghi chú chi tiết
+  
+  unitCost    Float?        // Giá vốn/đơn vị
+  totalCost   Float?        // Tổng giá vốn
+  
+  userId      Int?          // Ai tạo (cho mất mát/hư hỏng thủ công)
+  
+  createdAt   DateTime      @default(now())
+  
+  @@index([itemId])
+  @@index([orderId])
+  @@index([reason])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// =====================================================
+// PURCHASE ORDERS (ĐƠN GIẢN)
+// =====================================================
+model Supplier {
+  id             Int             @id @default(autoincrement())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  notes          String?
+  
+  purchaseOrders PurchaseOrder[]
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  
+  @@index([name])
+}
+
+model PurchaseOrder {
+  id           Int                   @id @default(autoincrement())
+  orderNumber  String                @unique
+  
+  supplier     Supplier?             @relation(fields: [supplierId], references: [id])
+  supplierId   Int?
+  
+  status       PurchaseOrderStatus   @default(DRAFT)
+  
+  // Người tạo (MANAGER)
+  createdBy    User                  @relation(fields: [createdById], references: [id])
+  createdById  Int
+  
+  orderDate    DateTime              @default(now())
+  receivedDate DateTime?             // Ngày nhập kho
+  
+  totalAmount  Float                 @default(0)
+  
+  items        PurchaseOrderItem[]
+  notes        String?
+  
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  
+  @@index([status])
+  @@index([orderDate])
+  @@index([createdById])
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id              Int            @id @default(autoincrement())
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId Int
+  
+  item            InventoryItem  @relation(fields: [itemId], references: [id])
+  itemId          Int
+  
+  quantity        Float
+  unitPrice       Float
+  totalPrice      Float
+  
+  expiryDate      DateTime?
+  batchNumber     String?
+  
+  createdAt       DateTime       @default(now())
+  
+  @@index([purchaseOrderId])
+  @@index([itemId])
+}
+
+// =====================================================
+// STOCK TAKE (KIỂM KÊ ĐƠN GIẢN)
+// =====================================================
+model StockTake {
+  id              Int               @id @default(autoincrement())
+  stockTakeNumber String            @unique
+  title           String
+  description     String?
+  status          StockTakeStatus   @default(IN_PROGRESS)
+  
+  // Người kiểm kê (MANAGER/EMPLOYEE)
+  createdBy       User              @relation(fields: [createdById], references: [id])
+  createdById     Int
+  
+  startDate       DateTime          @default(now())
+  completedDate   DateTime?
+  
+  items           StockTakeItem[]
+  notes           String?
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  @@index([status])
+  @@index([createdById])
+  @@index([completedDate])
+}
+
+model StockTakeItem {
+  id          Int           @id @default(autoincrement())
+  stockTake   StockTake     @relation(fields: [stockTakeId], references: [id], onDelete: Cascade)
+  stockTakeId Int
+  
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+  itemId      Int
+  
+  systemQty   Float         // Tồn kho hệ thống
+  actualQty   Float         // Thực tế đếm được
+  difference  Float         // Chênh lệch
+  
+  notes       String?
+  createdAt   DateTime      @default(now())
+  
+  @@index([stockTakeId])
+  @@index([itemId])
+  @@index([difference])
+}
+
+// =====================================================
+// HR & ATTENDANCE (ĐƠN GIẢN)
+// =====================================================
+model Attendance {
+  id        Int       @id @default(autoincrement())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    Int
+  
+  checkIn   DateTime
+  checkOut  DateTime?
+  
+  notes     String?
+  createdAt DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([checkIn])
+}
+
+model Shift {
+  id          Int         @id @default(autoincrement())
+  user        User        @relation(fields: [userId], references: [id])
+  userId      Int
+  
+  shiftName   String      // "Ca sáng", "Ca chiều", "Ca tối"
+  
+  startTime   DateTime    // Giờ bắt đầu
+  endTime     DateTime    // Giờ kết thúc
+  
+  status      ShiftStatus @default(ASSIGNED)
+  
+  notes       String?
+  createdAt   DateTime    @default(now())
+  
+  @@index([userId])
+  @@index([startTime])
+  @@index([status])
 }

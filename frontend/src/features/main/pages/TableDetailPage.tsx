@@ -1,10 +1,10 @@
-// frontend/src/features/main/pages/TableDetailPage.tsx - UPDATED
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table, Order, OrderItem } from '../../../lib/api';
+import { productsAPI, categoriesAPI, ordersAPI, tablesAPI, Product, Category, Table, Order } from '../../../lib/api';
 import { formatCurrency, getInitials } from '../../../lib/utils';
 import { Button } from '../../../components/ui/Button';
 import { Input, Select } from '../../../components/ui/Input';
+import { Sheet, SheetFooter } from '../../../components/ui/Sheet';
 import toast from 'react-hot-toast';
 import EditOrderItemModal from '../components/EditOrderItemModal';
 import {
@@ -39,11 +39,14 @@ export default function TableDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  // 👇 NEW: Mobile cart state
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  
   // Note modal
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   
-  // 👇 NEW: Edit modal
+  // Edit modal
   const [editingItem, setEditingItem] = useState<any | null>(null);
   
   // Move table
@@ -70,7 +73,6 @@ export default function TableDetailPage() {
       const foundTable = tablesRes.data.find((t) => t.id === Number(tableId));
       setTable(foundTable || null);
       
-      // Load active order
       if (tableId) {
         try {
           const orderRes = await ordersAPI.getActiveOrderByTable(Number(tableId));
@@ -87,7 +89,6 @@ export default function TableDetailPage() {
     }
   };
 
-  // Add to cart
   const addToCart = (product: Product) => {
     const tempId = `${product.id}-${Date.now()}`;
     setCart((prev) => [
@@ -138,7 +139,7 @@ export default function TableDetailPage() {
     }
   };
 
-  // Send order
+  // ✅ FIXED: Send order with proper reload
   const handleSendOrder = async () => {
     if (cart.length === 0) {
       toast.error('Chưa có món nào!');
@@ -154,9 +155,11 @@ export default function TableDetailPage() {
       }));
 
       if (activeOrder) {
+        // ✅ Gọi thêm món
         await ordersAPI.addItems(activeOrder.id, items);
         toast.success('Đã gọi thêm món!');
       } else {
+        // ✅ Tạo order mới
         await ordersAPI.create({
           items,
           tableId: Number(tableId),
@@ -165,8 +168,10 @@ export default function TableDetailPage() {
         toast.success('Đã tạo đơn hàng!');
       }
 
+      // ✅ CRITICAL: Clear cart & reload
       setCart([]);
       await fetchData();
+      setIsCartOpen(false); // Close mobile cart
     } catch (error) {
       console.error(error);
       toast.error('Có lỗi xảy ra');
@@ -175,7 +180,6 @@ export default function TableDetailPage() {
     }
   };
 
-  // 👇 NEW: Handle edit existing item
   const handleEditExistingItem = (item: any) => {
     setEditingItem(item);
   };
@@ -206,7 +210,6 @@ export default function TableDetailPage() {
     }
   };
 
-  // Payment
   const handlePayment = async () => {
     if (!activeOrder) return;
     if (!confirm(`Thanh toán ${formatCurrency(activeOrder.totalAmount)}?`)) return;
@@ -224,7 +227,6 @@ export default function TableDetailPage() {
     }
   };
 
-  // Move table
   const handleMoveTable = async () => {
     if (!activeOrder || !newTableId) return;
 
@@ -246,6 +248,7 @@ export default function TableDetailPage() {
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const orderTotal = activeOrder?.totalAmount || 0;
   const grandTotal = cartTotal + orderTotal;
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const availableTables = allTables.filter(
     (t) => t.status === 'AVAILABLE' || t.id === Number(tableId)
@@ -325,7 +328,7 @@ export default function TableDetailPage() {
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 pb-20 lg:pb-0">
           {filteredProducts.map((product) => (
             <button
               key={product.id}
@@ -356,24 +359,37 @@ export default function TableDetailPage() {
         </div>
       </div>
 
-      {/* Cart Sidebar - Desktop */}
-      <div className="hidden lg:block fixed right-0 top-0 w-96 h-screen bg-white border-l border-gray-200 shadow-xl z-30">
-        <div className="flex flex-col h-full">
-          {/* Cart Header */}
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingCartIcon className="h-6 w-6" />
-              Đơn hàng
-            </h2>
+      {/* 🎯 Floating Cart Button - Mobile */}
+      <button
+        onClick={() => setIsCartOpen(true)}
+        className="lg:hidden fixed bottom-6 right-6 z-40 bg-indigo-600 text-white rounded-full shadow-2xl p-4 flex items-center gap-3 hover:bg-indigo-700 transition-all transform active:scale-95"
+      >
+        <ShoppingCartIcon className="h-6 w-6" />
+        {(cartItemCount > 0 || activeOrder) && (
+          <div className="flex flex-col items-start">
+            <span className="text-xs font-medium">
+              {cartItemCount + (activeOrder?.items.reduce((s, i) => s + i.quantity, 0) || 0)} món
+            </span>
+            <span className="text-sm font-bold">{formatCurrency(grandTotal)}</span>
           </div>
+        )}
+        {cartItemCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold animate-pulse">
+            {cartItemCount}
+          </span>
+        )}
+      </button>
 
-          {/* Active Order Items */}
+      {/* 🎯 Cart Sheet - Mobile */}
+      <Sheet isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} title="Đơn hàng">
+        <div className="space-y-4">
+          {/* Active Order */}
           {activeOrder && (
-            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50 max-h-64 overflow-y-auto">
+            <div className="px-4 py-3 bg-yellow-50 border-b border-yellow-200">
               <p className="text-sm font-semibold text-yellow-800 mb-2">
                 ✓ Đã gọi ({activeOrder.items.length} món)
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-40 overflow-y-auto">
                 {activeOrder.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between text-xs bg-white rounded p-2">
                     <div className="flex-1">
@@ -381,18 +397,13 @@ export default function TableDetailPage() {
                         {item.quantity}x {item.product.name}
                         {item.note && ` (${item.note})`}
                       </span>
-                      {item.isServed && (
-                        <span className="ml-2 text-green-600">✓</span>
-                      )}
+                      {item.isServed && <span className="ml-2 text-green-600">✓</span>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {formatCurrency(item.price * item.quantity)}
-                      </span>
+                      <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
                       <button
                         onClick={() => handleEditExistingItem(item)}
                         className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                        title="Sửa món"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
@@ -407,61 +418,164 @@ export default function TableDetailPage() {
             </div>
           )}
 
-          {/* New Cart Items */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* New Cart */}
+          <div className="px-4 space-y-3">
             {cart.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-8 text-gray-500">
                 <ShoppingCartIcon className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">Chưa có món nào</p>
+                <p className="text-sm">Chưa có món mới</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Món mới ({cart.length})
-                </p>
+              <>
+                <p className="text-sm font-semibold text-gray-700">Món mới ({cart.length})</p>
                 {cart.map((item) => (
                   <div key={item.tempId} className="bg-gray-50 rounded-lg p-3">
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-900">{item.name}</p>
-                        {item.note && (
-                          <p className="text-xs text-indigo-600 mt-0.5">📝 {item.note}</p>
-                        )}
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.name}</p>
+                        {item.note && <p className="text-xs text-indigo-600 mt-1">📝 {item.note}</p>}
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => openNoteModal(item)}
-                          className="p-1 text-gray-500 hover:text-indigo-600"
-                        >
+                      <div className="flex gap-1">
+                        <button onClick={() => openNoteModal(item)} className="p-1 text-gray-500">
                           <ChatBubbleLeftIcon className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => removeItem(item.tempId)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        >
+                        <button onClick={() => removeItem(item.tempId)} className="p-1 text-red-600">
                           <TrashIcon className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => updateQuantity(item.tempId, -1)}
-                          className="p-1 rounded bg-white hover:bg-gray-200"
-                        >
+                        <button onClick={() => updateQuantity(item.tempId, -1)} className="p-1 bg-white rounded border">
                           <MinusIcon className="h-4 w-4" />
                         </button>
                         <span className="w-8 text-center font-medium">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.tempId, 1)}
-                          className="p-1 rounded bg-white hover:bg-gray-200"
-                        >
+                        <button onClick={() => updateQuantity(item.tempId, 1)} className="p-1 bg-white rounded border">
                           <PlusIcon className="h-4 w-4" />
                         </button>
                       </div>
-                      <span className="font-bold text-gray-900">
-                        {formatCurrency(item.price * item.quantity)}
+                      <span className="font-bold">{formatCurrency(item.price * item.quantity)}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+
+        <SheetFooter className="flex-col gap-3">
+          <div className="flex justify-between w-full text-xl font-bold border-t pt-3">
+            <span>Tổng cộng:</span>
+            <span className="text-indigo-600">{formatCurrency(grandTotal)}</span>
+          </div>
+          {cart.length > 0 && (
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={handleSendOrder}
+              isLoading={isLoading}
+            >
+              <CheckCircleIcon className="h-5 w-5 mr-2" />
+              {activeOrder ? 'Gọi thêm món' : 'Gửi thực đơn'}
+            </Button>
+          )}
+          {activeOrder && (
+            <Button
+              variant="success"
+              size="lg"
+              className="w-full"
+              onClick={handlePayment}
+              isLoading={isLoading}
+              disabled={cart.length > 0}
+            >
+              <CurrencyDollarIcon className="h-5 w-5 mr-2" />
+              Thanh toán
+            </Button>
+          )}
+        </SheetFooter>
+      </Sheet>
+
+      {/* Cart Sidebar - Desktop */}
+      <div className="hidden lg:block fixed right-0 top-0 w-96 h-screen bg-white border-l border-gray-200 shadow-xl z-30">
+        <div className="flex flex-col h-full">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <ShoppingCartIcon className="h-6 w-6" />
+              Đơn hàng
+            </h2>
+          </div>
+
+          {activeOrder && (
+            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50 max-h-64 overflow-y-auto">
+              <p className="text-sm font-semibold text-yellow-800 mb-2">
+                ✓ Đã gọi ({activeOrder.items.length} món)
+              </p>
+              <div className="space-y-2">
+                {activeOrder.items.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-xs bg-white rounded p-2">
+                    <div className="flex-1">
+                      <span className="text-gray-700">
+                        {item.quantity}x {item.product.name}
+                        {item.note && ` (${item.note})`}
                       </span>
+                      {item.isServed && <span className="ml-2 text-green-600">✓</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
+                      <button
+                        onClick={() => handleEditExistingItem(item)}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 pt-2 border-t border-yellow-200 flex justify-between text-sm font-bold">
+                <span>Tạm tính:</span>
+                <span className="text-yellow-800">{formatCurrency(orderTotal)}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {cart.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <ShoppingCartIcon className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">Chưa có món mới</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Món mới ({cart.length})</p>
+                {cart.map((item) => (
+                  <div key={item.tempId} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.name}</p>
+                        {item.note && <p className="text-xs text-indigo-600 mt-1">📝 {item.note}</p>}
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => openNoteModal(item)} className="p-1 text-gray-500">
+                          <ChatBubbleLeftIcon className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => removeItem(item.tempId)} className="p-1 text-red-600">
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateQuantity(item.tempId, -1)} className="p-1 bg-white rounded border">
+                          <MinusIcon className="h-4 w-4" />
+                        </button>
+                        <span className="w-8 text-center font-medium">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.tempId, 1)} className="p-1 bg-white rounded border">
+                          <PlusIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <span className="font-bold">{formatCurrency(item.price * item.quantity)}</span>
                     </div>
                   </div>
                 ))}
@@ -469,54 +583,30 @@ export default function TableDetailPage() {
             )}
           </div>
 
-          {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 space-y-3">
-            <div className="space-y-1">
-              {activeOrder && (
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Đã gọi:</span>
-                  <span>{formatCurrency(orderTotal)}</span>
-                </div>
-              )}
-              {cart.length > 0 && (
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Món mới:</span>
-                  <span>{formatCurrency(cartTotal)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-xl font-bold pt-2 border-t">
-                <span>Tổng cộng:</span>
-                <span className="text-indigo-600">{formatCurrency(grandTotal)}</span>
-              </div>
+            <div className="flex justify-between text-xl font-bold">
+              <span>Tổng cộng:</span>
+              <span className="text-indigo-600">{formatCurrency(grandTotal)}</span>
             </div>
-
-            <div className="space-y-2">
-              {cart.length > 0 && (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  onClick={handleSendOrder}
-                  isLoading={isLoading}
-                >
-                  <CheckCircleIcon className="h-5 w-5 mr-2" />
-                  {activeOrder ? 'Gọi thêm món' : 'Gửi thực đơn'}
-                </Button>
-              )}
-              {activeOrder && (
-                <Button
-                  variant="success"
-                  size="lg"
-                  className="w-full"
-                  onClick={handlePayment}
-                  isLoading={isLoading}
-                  disabled={cart.length > 0}
-                >
-                  <CurrencyDollarIcon className="h-5 w-5 mr-2" />
-                  Thanh toán
-                </Button>
-              )}
-            </div>
+            {cart.length > 0 && (
+              <Button variant="primary" size="lg" className="w-full" onClick={handleSendOrder} isLoading={isLoading}>
+                <CheckCircleIcon className="h-5 w-5 mr-2" />
+                {activeOrder ? 'Gọi thêm món' : 'Gửi thực đơn'}
+              </Button>
+            )}
+            {activeOrder && (
+              <Button
+                variant="success"
+                size="lg"
+                className="w-full"
+                onClick={handlePayment}
+                isLoading={isLoading}
+                disabled={cart.length > 0}
+              >
+                <CurrencyDollarIcon className="h-5 w-5 mr-2" />
+                Thanh toán
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -534,18 +624,13 @@ export default function TableDetailPage() {
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="secondary" onClick={() => setNoteItemId(null)}>
-                Hủy
-              </Button>
-              <Button variant="primary" onClick={saveNote}>
-                Lưu
-              </Button>
+              <Button variant="secondary" onClick={() => setNoteItemId(null)}>Hủy</Button>
+              <Button variant="primary" onClick={saveNote}>Lưu</Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Edit Order Item Modal */}
       <EditOrderItemModal
         item={editingItem}
         isOpen={!!editingItem}
@@ -553,7 +638,6 @@ export default function TableDetailPage() {
         onSave={handleSaveEdit}
       />
 
-      {/* Move Table Modal */}
       {showMoveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowMoveModal(false)} />
@@ -577,12 +661,8 @@ export default function TableDetailPage() {
               ]}
             />
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="secondary" onClick={() => setShowMoveModal(false)}>
-                Hủy
-              </Button>
-              <Button variant="primary" onClick={handleMoveTable} disabled={!newTableId}>
-                Chuyển bàn
-              </Button>
+              <Button variant="secondary" onClick={() => setShowMoveModal(false)}>Hủy</Button>
+              <Button variant="primary" onClick={handleMoveTable} disabled={!newTableId}>Chuyển bàn</Button>
             </div>
           </div>
         </div>
