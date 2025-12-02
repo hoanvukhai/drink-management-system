@@ -18,6 +18,10 @@ import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { StockTakesModule } from './stock-takes/stock-takes.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ShiftsModule } from './shifts/shifts.module';
+import { ExpensesModule } from './expenses/expenses.module';
+import { HrModule } from './hr/hr.module';
+import { IngredientsModule } from './ingredients/ingredients.module';
+import { ShiftsModule } from './shifts/shifts.module';
 
 @Module({
   imports: [
@@ -38,6 +42,9 @@ import { ShiftsModule } from './shifts/shifts.module';
     StockTakesModule,
     AttendanceModule,
     ShiftsModule,
+    IngredientsModule,
+    HrModule,
+    ExpensesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

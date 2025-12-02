@@ -1,22 +1,21 @@
 import {
-  IsString,
   IsInt,
   IsOptional,
   IsArray,
   ValidateNested,
+  IsNumber,
+  Min,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RecipeIngredientDto {
-  @IsString()
-  name: string;
+  @IsInt()
+  ingredientId: number; // <-- Sửa: Dùng ID nguyên liệu, không dùng tên
 
-  @IsString()
-  quantity: string;
-
-  @IsString()
-  @IsOptional()
-  note?: string;
+  @IsNumber()
+  @Min(0)
+  quantity: number; // <-- Sửa: Dùng số (Float) để trừ kho
 }
 
 export class RecipeStepDto {

@@ -37,153 +37,105 @@ export class RecipesService {
     return recipe;
   }
 
-  // Lấy tất cả công thức
-  async findAll() {
+  // --- FIND ALL ---
+  findAll() {
     return this.prisma.recipe.findMany({
       include: {
-        ingredients: { orderBy: { id: 'asc' } },
-        steps: { orderBy: { stepNumber: 'asc' } },
-        product: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            category: true,
-          },
-        },
+        product: { select: { id: true, name: true } },
+        ingredients: { include: { ingredient: true } }, // Kèm tên nguyên liệu
       },
-      orderBy: { createdAt: 'desc' },
     });
   }
 
-  // Tạo công thức mới
+  // --- CREATE ---
   async create(createRecipeDto: CreateRecipeDto) {
-    // Kiểm tra product có tồn tại không
+    const { productId, description, ingredients, steps } = createRecipeDto;
+
+    // 1. Check Product
     const product = await this.prisma.product.findUnique({
-      where: { id: createRecipeDto.productId },
+      where: { id: productId },
     });
+    if (!product)
+      throw new NotFoundException(`Sản phẩm #${productId} không tồn tại`);
 
-    if (!product) {
-      throw new NotFoundException(
-        `Sản phẩm #${createRecipeDto.productId} không tồn tại`,
-      );
-    }
-
-    // Kiểm tra đã có công thức chưa
+    // 2. Check Existing Recipe
     const existing = await this.prisma.recipe.findUnique({
-      where: { productId: createRecipeDto.productId },
+      where: { productId },
     });
+    if (existing) throw new ConflictException(`Sản phẩm này đã có công thức.`);
 
-    if (existing) {
-      throw new ConflictException(
-        `Sản phẩm này đã có công thức rồi. Hãy dùng update thay vì create.`,
-      );
-    }
-
+    // 3. Tạo Recipe
     return this.prisma.recipe.create({
       data: {
-        productId: createRecipeDto.productId,
-        description: createRecipeDto.description,
+        productId,
+        description,
         ingredients: {
-          createMany: {
-            data: createRecipeDto.ingredients,
-          },
+          create: ingredients.map((i) => ({
+            ingredientId: i.ingredientId, // Link với bảng Ingredient
+            quantity: i.quantity,
+          })),
         },
         steps: {
-          createMany: {
-            data: createRecipeDto.steps,
-          },
+          create: steps.map((s) => ({
+            stepNumber: s.stepNumber,
+            instruction: s.instruction,
+          })),
         },
       },
       include: {
-        ingredients: { orderBy: { id: 'asc' } },
-        steps: { orderBy: { stepNumber: 'asc' } },
-        product: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-          },
-        },
+        ingredients: { include: { ingredient: true } }, // Kèm tên nguyên liệu
+        steps: true,
       },
     });
   }
 
   // Cập nhật công thức
   async update(id: number, updateRecipeDto: UpdateRecipeDto) {
-    // Kiểm tra recipe tồn tại
-    const recipe = await this.prisma.recipe.findUnique({
-      where: { id },
-    });
+    const recipe = await this.prisma.recipe.findUnique({ where: { id } });
+    if (!recipe) throw new NotFoundException(`Công thức #${id} không tồn tại`);
 
-    if (!recipe) {
-      throw new NotFoundException(`Công thức #${id} không tồn tại`);
-    }
-
-    // Xóa ingredients và steps cũ, tạo mới
     return this.prisma.$transaction(async (tx) => {
-      // Xóa cũ
-      await tx.recipeIngredient.deleteMany({
-        where: { recipeId: id },
-      });
-      await tx.recipeStep.deleteMany({
-        where: { recipeId: id },
-      });
+      // 1. Xóa hết nguyên liệu và các bước cũ
+      await tx.recipeIngredient.deleteMany({ where: { recipeId: id } });
+      await tx.recipeStep.deleteMany({ where: { recipeId: id } });
 
-      // Cập nhật và tạo mới
+      // 2. Cập nhật thông tin và tạo lại danh sách mới
       return tx.recipe.update({
         where: { id },
         data: {
           description: updateRecipeDto.description,
-          ...(updateRecipeDto.ingredients && {
-            ingredients: {
-              createMany: {
-                data: updateRecipeDto.ingredients,
-              },
-            },
-          }),
-          ...(updateRecipeDto.steps && {
-            steps: {
-              createMany: {
-                data: updateRecipeDto.steps,
-              },
-            },
-          }),
+
+          // SỬA Ở ĐÂY: Dùng 'create' và 'map' để an toàn dữ liệu đầu vào (giống hàm create)
+          ingredients: {
+            create:
+              updateRecipeDto.ingredients?.map((i) => ({
+                ingredientId: i.ingredientId,
+                quantity: i.quantity,
+              })) || [],
+          },
+
+          steps: {
+            create:
+              updateRecipeDto.steps?.map((s) => ({
+                stepNumber: s.stepNumber,
+                instruction: s.instruction,
+              })) || [],
+          },
         },
         include: {
-          ingredients: { orderBy: { id: 'asc' } },
+          ingredients: {
+            include: { ingredient: true },
+            orderBy: { id: 'asc' },
+          }, // Kèm tên nguyên liệu
           steps: { orderBy: { stepNumber: 'asc' } },
-          product: {
-            select: {
-              id: true,
-              name: true,
-              price: true,
-            },
-          },
+          product: { select: { id: true, name: true } },
         },
       });
     });
   }
 
-  // Xóa công thức
   async remove(id: number) {
-    const recipe = await this.prisma.recipe.findUnique({
-      where: { id },
-    });
-
-    if (!recipe) {
-      throw new NotFoundException(`Công thức #${id} không tồn tại`);
-    }
-
-    // Prisma sẽ tự động xóa ingredients và steps nhờ onDelete: Cascade
-    await this.prisma.recipe.delete({
-      where: { id },
-    });
-
-    return {
-      message: 'Đã xóa công thức thành công',
-      id,
-    };
+    return this.prisma.recipe.delete({ where: { id } });
   }
 
   // Kiểm tra xem product đã có recipe chưa
