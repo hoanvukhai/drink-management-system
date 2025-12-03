@@ -9,13 +9,14 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+// 🔥 FIX: Sử dụng ingredientId thay vì name
 export class RecipeIngredientDto {
   @IsInt()
-  ingredientId: number; // <-- Sửa: Dùng ID nguyên liệu, không dùng tên
+  ingredientId: number; // ID của nguyên liệu trong bảng Ingredient
 
   @IsNumber()
   @Min(0)
-  quantity: number; // <-- Sửa: Dùng số (Float) để trừ kho
+  quantity: number; // Định lượng (VD: 0.03 kg)
 }
 
 export class RecipeStepDto {

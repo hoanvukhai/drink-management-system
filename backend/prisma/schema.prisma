@@ -1,3 +1,5 @@
+// backend/prisma/schema.prisma - FIXED VERSION
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +10,7 @@ datasource db {
 }
 
 // =====================================================
-// 1. NGƯỜI DÙNG & PHÂN QUYỀN (GIỮ NGUYÊN + BỔ SUNG LINK)
+// 1. USER & AUTH
 // =====================================================
 enum Role {
   EMPLOYEE
@@ -23,12 +25,9 @@ model User {
   name      String?
   role      Role     @default(EMPLOYEE)
   
-  // 👇 BỔ SUNG LIÊN KẾT: Để biết ai làm gì trong kho và nhân sự
   transactions InventoryTransaction[] 
   attendances  Attendance[]           
   shifts       Shift[]
-  
-  // (Optional: Link tới Order để biết ai bán)
   orders       Order[]
 
   createdAt DateTime @default(now())
@@ -36,7 +35,7 @@ model User {
 }
 
 // =====================================================
-// 2. MENU & SẢN PHẨM (GIỮ NGUYÊN CODE CŨ CỦA BẠN)
+// 2. MENU & PRODUCTS
 // =====================================================
 model Category {
   id        Int       @id @default(autoincrement())
@@ -55,9 +54,7 @@ model Product {
   categoryId Int
   
   orderItems OrderItem[]
-  recipe     Recipe?     // Liên kết 1-1 với công thức
-  
-  // Bổ sung từ file của bạn (rất hữu ích để ẩn món hết hàng)
+  recipe     Recipe?
   available  Boolean     @default(true)
 
   createdAt  DateTime    @default(now())
@@ -65,7 +62,7 @@ model Product {
 }
 
 // =====================================================
-// 3. BÀN & KHU VỰC (GIỮ NGUYÊN CODE CŨ CỦA BẠN)
+// 3. TABLES & ZONES
 // =====================================================
 enum TableStatus {
   AVAILABLE
@@ -93,19 +90,19 @@ model Table {
 }
 
 // =====================================================
-// 4. ĐƠN HÀNG (POS) (GIỮ NGUYÊN CODE CŨ CỦA BẠN)
+// 4. ORDERS (POS)
 // =====================================================
 enum OrderStatus {
-  PENDING    // Đang chờ pha chế / Đang phục vụ
-  READY      // Đã pha xong
-  SERVED     // Đã mang ra
-  COMPLETED  // Đã thanh toán (Lúc này sẽ trừ kho)
-  CANCELLED  // Hủy đơn
+  PENDING
+  READY
+  SERVED
+  COMPLETED
+  CANCELLED
 }
 
 model Order {
   id            Int         @id @default(autoincrement())
-  orderNumber   String      @unique @default(uuid()) // Tự sinh mã đơn
+  orderNumber   String      @unique @default(uuid())
   totalAmount   Float       @default(0)
   status        OrderStatus @default(PENDING)
   type          String      @default("DINE_IN")
@@ -116,11 +113,9 @@ model Order {
   customerName  String?
   customerPhone String?
   
-  // Người tạo đơn
   createdBy     User?       @relation(fields: [createdById], references: [id])
-  createdById   Int?        
+  createdById   Int?
 
-  // Timing
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   readyAt       DateTime?
@@ -141,30 +136,26 @@ model OrderItem {
   productId   Int
   
   quantity    Int
-  price       Float     
-  note        String?   
+  price       Float
+  note        String?
   isServed    Boolean   @default(false)
   isCompleted Boolean   @default(false)
+  completedAt DateTime?
   
-// 👇 QUAN TRỌNG: Thêm trường này để fix lỗi completedAt
-  completedAt DateTime? 
-  
-  // 👇 QUAN TRỌNG: Thêm trường này để fix lỗi edits
-  edits       OrderItemEdit[] 
+  edits       OrderItemEdit[]
   
   createdAt   DateTime  @default(now())
   @@index([orderId])
 }
 
-// Thêm model này vào cuối file schema nếu chưa có
 model OrderItemEdit {
   id          Int       @id @default(autoincrement())
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   orderItemId Int
-  action      String    
+  action      String
   oldValue    String?
   newValue    String?
-  reason      String?   // Cho phép null nếu không bắt buộc
+  reason      String?
   userId      Int?
   createdAt   DateTime  @default(now())
 
@@ -172,42 +163,41 @@ model OrderItemEdit {
 }
 
 // =====================================================
-// 5. KHO & ĐỊNH LƯỢNG (INVENTORY) - 🔥 PHẦN ĐƯỢC CHỈNH SỬA
+// 5. 🔥 INVENTORY SYSTEM - FIXED
 // =====================================================
-// Tôi dùng mô hình "Ingredient + Transaction" (Level 2)
-// Vì nó linh hoạt hơn mô hình "PurchaseOrder" cứng nhắc.
 
+// Nguyên liệu kho
 model Ingredient {
   id           Int      @id @default(autoincrement())
   name         String   @unique 
-  unit         String   // Đơn vị quản lý: "kg", "lít", "hộp", "quả"
+  unit         String   // Đơn vị cơ sở: "kg", "lít", "hộp"
   
   // Tồn kho & Giá vốn
-  currentStock Float    @default(0) // Số lượng hiện có
-  costPrice    Float    @default(0) // Giá vốn bình quân (tự tính khi nhập)
-  minStock     Float    @default(0) // Cảnh báo khi dưới mức này
+  currentStock Float    @default(0)
+  costPrice    Float    @default(0) // Giá vốn bình quân
+  minStock     Float    @default(0) // Cảnh báo hết hàng
   
-  // Liên kết
-  transactions InventoryTransaction[] // Lịch sử biến động
-  recipeItems  RecipeIngredient[]     // Dùng trong món nào
+  // Relations
+  transactions InventoryTransaction[]
+  recipeItems  RecipeIngredient[]
   
   updatedAt    DateTime @updatedAt
 }
 
-// Thẻ kho (Thay thế cho cả PurchaseOrder và StockTake phức tạp)
+// Thẻ kho - Lưu mọi biến động
 model InventoryTransaction {
   id           Int             @id @default(autoincrement())
   ingredient   Ingredient      @relation(fields: [ingredientId], references: [id])
   ingredientId Int
   
-  change       Float           // Số lượng thay đổi: +10 (Nhập), -0.5 (Bán), -1 (Vỡ)
-  price        Float           @default(0) // Tổng tiền nhập (chỉ dùng khi nhập hàng)
+  change       Float           // +10 (Nhập), -0.5 (Bán), -1 (Hỏng)
+  price        Float           @default(0) // Tổng tiền nhập (IMPORT only)
   
-  type         TransactionType // Loại giao dịch
-  note         String?         // "Nhập hàng Vinamilk", "Đơn hàng #105", "Kiểm kê tháng 11"
+  type         TransactionType
+  note         String?
   
   createdBy    User?           @relation(fields: [userId], references: [id])
-  userId       Int?            // Ai làm?
+  userId       Int?
 
   createdAt    DateTime        @default(now())
   
@@ -216,24 +206,24 @@ model InventoryTransaction {
 }
 
 enum TransactionType {
-  IMPORT          // Nhập hàng (+) -> Thay cho PurchaseOrder
-  EXPORT_SALES    // Trừ khi bán hàng (-) -> Tự động
-  EXPORT_DAMAGE   // Hủy hàng hỏng/vỡ (-)
-  AUDIT           // Kiểm kê/Cân bằng kho (+/-) -> Thay cho StockTake
+  IMPORT          // Nhập hàng (+)
+  EXPORT_SALES    // Trừ khi bán (-)
+  EXPORT_DAMAGE   // Hủy hàng hỏng (-)
+  AUDIT           // Kiểm kê (+/-)
 }
 
 // =====================================================
-// 6. CÔNG THỨC PHA CHẾ (RECIPE)
+// 6. RECIPE - FIXED
 // =====================================================
 
 model Recipe {
   id          Int                @id @default(autoincrement())
   product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId   Int                @unique
-  description String?            // Hướng dẫn chung
+  description String?
   
-  steps       RecipeStep[]       // Các bước làm
-  ingredients RecipeIngredient[] // Định lượng
+  steps       RecipeStep[]
+  ingredients RecipeIngredient[]
   
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
@@ -250,17 +240,17 @@ model RecipeStep {
   @@index([recipeId])
 }
 
-// Bảng nối Món ăn và Nguyên liệu kho
+// 🔥 FIX: Liên kết trực tiếp với Ingredient
 model RecipeIngredient {
   id           Int        @id @default(autoincrement())
   recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   recipeId     Int
   
-  // Liên kết trực tiếp với kho
+  // 🔥 CRITICAL: Link to Ingredient table
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
   ingredientId Int
   
-  quantity     Float      // Định mức: 1 ly dùng bao nhiêu? (Ví dụ: 0.03 lít)
+  quantity     Float      // Định mức: VD: 0.03 kg cho 1 ly
   
   createdAt    DateTime   @default(now())
   
@@ -268,7 +258,7 @@ model RecipeIngredient {
 }
 
 // =====================================================
-// 7. NHÂN SỰ & CHI PHÍ (Lấy từ file của bạn nhưng gọn hơn)
+// 7. HR & EXPENSES
 // =====================================================
 
 model Attendance {
@@ -278,7 +268,6 @@ model Attendance {
   
   checkIn   DateTime @default(now())
   checkOut  DateTime?
-  
   note      String?
   createdAt DateTime @default(now())
 }
@@ -294,7 +283,7 @@ model Shift {
   user      User        @relation(fields: [userId], references: [id])
   userId    Int
   
-  shiftName String      // "Ca Sáng"
+  shiftName String
   startTime DateTime
   endTime   DateTime
   status    ShiftStatus @default(ASSIGNED)
@@ -302,12 +291,11 @@ model Shift {
   createdAt DateTime    @default(now())
 }
 
-// Bảng chi phí (Để tính lãi ròng: Lãi = Doanh thu - Giá vốn - Chi phí này)
 model Expense {
-  id          Int      @id @default(autoincrement())
-  name        String   // "Tiền điện T11"
-  amount      Float    // 2.000.000
-  type        String   // "UTILITY", "SALARY", "MARKETING", "OTHER"
-  note        String?
-  date        DateTime @default(now())
+  id     Int      @id @default(autoincrement())
+  name   String
+  amount Float
+  type   String
+  note   String?
+  date   DateTime @default(now())
 }

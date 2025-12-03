@@ -7,10 +7,14 @@ import { CreateOrderDto, AddItemsDto } from './dto/create-order.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrderStatus, TableStatus } from '@prisma/client'; // 👈 Import enums
 import { EditOrderItemDto } from './dto/update-order.dto';
+import { InventoryService } from '../inventory/inventory.service'; // 👈 NEW
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+  ) {}
 
   // ============================================
   // 1. TẠO ĐƠN MỚI
@@ -307,31 +311,64 @@ export class OrdersService {
     });
   }
 
-  // ============================================
-  // 7. THANH TOÁN
-  // ============================================
+  // =====================================================
+  // 🔥 THANH TOÁN - TỰ ĐỘNG TRỪ KHO
+  // =====================================================
   async complete(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: {
+                recipe: {
+                  include: {
+                    ingredients: {
+                      include: { ingredient: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!order) throw new NotFoundException(`Order not found`);
 
     return this.prisma.$transaction(async (tx) => {
+      // 1. Cập nhật trạng thái đơn hàng
       await tx.order.update({
         where: { id: orderId },
         data: {
-          status: OrderStatus.COMPLETED, // 👈 Dùng enum
+          status: OrderStatus.COMPLETED,
           completedAt: new Date(),
         },
       });
 
-      // Trả bàn
+      // 2. 🔥 TRỪ KHO TỰ ĐỘNG
+      try {
+        await this.inventoryService.deductStockOnOrderComplete(orderId);
+        console.log(`✅ Đã trừ kho cho đơn #${order.orderNumber}`);
+      } catch (error) {
+        console.error(
+          `❌ Lỗi trừ kho cho đơn #${order.orderNumber}:`,
+          (error as Error).message,
+        );
+        // OPTIONAL: Có thể rollback hoặc chỉ log warning
+        throw new BadRequestException(
+          `Không thể trừ kho: ${(error as Error).message}`,
+        );
+      }
+
+      // 3. Trả bàn
       if (order.tableId) {
         const remaining = await tx.order.count({
           where: {
             tableId: order.tableId,
-            status: { not: OrderStatus.COMPLETED }, // 👈 Dùng enum
+            status: { not: OrderStatus.COMPLETED },
             id: { not: orderId },
           },
         });
@@ -339,7 +376,7 @@ export class OrdersService {
         if (remaining === 0) {
           await tx.table.update({
             where: { id: order.tableId },
-            data: { status: TableStatus.AVAILABLE }, // 👈 Dùng enum
+            data: { status: TableStatus.AVAILABLE },
           });
         }
       }

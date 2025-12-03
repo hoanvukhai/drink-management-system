@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { UpdateRecipeDto } from './dto/update-recipe.dto';
-
+import { BadRequestException } from '@nestjs/common';
 @Injectable()
 export class RecipesService {
   constructor(private prisma: PrismaService) {}
@@ -16,7 +16,10 @@ export class RecipesService {
     const recipe = await this.prisma.recipe.findUnique({
       where: { productId },
       include: {
-        ingredients: { orderBy: { id: 'asc' } },
+        ingredients: {
+          include: { ingredient: true }, // 🔥 Include Ingredient details
+          orderBy: { id: 'asc' },
+        },
         steps: { orderBy: { stepNumber: 'asc' } },
         product: {
           select: {
@@ -37,17 +40,17 @@ export class RecipesService {
     return recipe;
   }
 
-  // --- FIND ALL ---
+  // Lấy tất cả công thức
   findAll() {
     return this.prisma.recipe.findMany({
       include: {
         product: { select: { id: true, name: true } },
-        ingredients: { include: { ingredient: true } }, // Kèm tên nguyên liệu
+        ingredients: { include: { ingredient: true } },
       },
     });
   }
 
-  // --- CREATE ---
+  // Tạo công thức mới
   async create(createRecipeDto: CreateRecipeDto) {
     const { productId, description, ingredients, steps } = createRecipeDto;
 
@@ -64,14 +67,26 @@ export class RecipesService {
     });
     if (existing) throw new ConflictException(`Sản phẩm này đã có công thức.`);
 
-    // 3. Tạo Recipe
+    // 3. Validate ingredients exist
+    const ingredientIds = ingredients.map((i) => i.ingredientId);
+    const foundIngredients = await this.prisma.ingredient.findMany({
+      where: { id: { in: ingredientIds } },
+    });
+
+    if (foundIngredients.length !== ingredientIds.length) {
+      throw new BadRequestException(
+        'Một số nguyên liệu không tồn tại trong kho',
+      );
+    }
+
+    // 4. Tạo Recipe
     return this.prisma.recipe.create({
       data: {
         productId,
         description,
         ingredients: {
           create: ingredients.map((i) => ({
-            ingredientId: i.ingredientId, // Link với bảng Ingredient
+            ingredientId: i.ingredientId,
             quantity: i.quantity,
           })),
         },
@@ -83,7 +98,7 @@ export class RecipesService {
         },
       },
       include: {
-        ingredients: { include: { ingredient: true } }, // Kèm tên nguyên liệu
+        ingredients: { include: { ingredient: true } },
         steps: true,
       },
     });
@@ -104,8 +119,6 @@ export class RecipesService {
         where: { id },
         data: {
           description: updateRecipeDto.description,
-
-          // SỬA Ở ĐÂY: Dùng 'create' và 'map' để an toàn dữ liệu đầu vào (giống hàm create)
           ingredients: {
             create:
               updateRecipeDto.ingredients?.map((i) => ({
@@ -113,7 +126,6 @@ export class RecipesService {
                 quantity: i.quantity,
               })) || [],
           },
-
           steps: {
             create:
               updateRecipeDto.steps?.map((s) => ({
@@ -126,7 +138,7 @@ export class RecipesService {
           ingredients: {
             include: { ingredient: true },
             orderBy: { id: 'asc' },
-          }, // Kèm tên nguyên liệu
+          },
           steps: { orderBy: { stepNumber: 'asc' } },
           product: { select: { id: true, name: true } },
         },
@@ -138,7 +150,6 @@ export class RecipesService {
     return this.prisma.recipe.delete({ where: { id } });
   }
 
-  // Kiểm tra xem product đã có recipe chưa
   async hasRecipe(productId: number): Promise<boolean> {
     const recipe = await this.prisma.recipe.findUnique({
       where: { productId },

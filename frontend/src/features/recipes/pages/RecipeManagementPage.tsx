@@ -1,11 +1,9 @@
-// frontend/src/features/recipes/pages/RecipeManagementPage.tsx
 import { useState, useEffect } from 'react';
-import { recipesAPI, productsAPI, Recipe, Product } from '../../../lib/api';
+import { recipesAPI, productsAPI, ingredientsAPI, Recipe, Product, Ingredient } from '../../../lib/api';
 import { Card, CardHeader } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Modal, ModalFooter } from '../../../components/ui/Modal';
 import { Input, Textarea, Select } from '../../../components/ui/Input';
-import { Badge } from '../../../components/ui/Badge';
 import toast from 'react-hot-toast';
 import {
   PlusIcon,
@@ -13,13 +11,11 @@ import {
   TrashIcon,
   BookOpenIcon,
   BeakerIcon,
-  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 
 interface IngredientForm {
-  name: string;
+  ingredientId: string; // 🔥 Changed from name
   quantity: string;
-  note: string;
 }
 
 interface StepForm {
@@ -30,17 +26,16 @@ interface StepForm {
 export default function RecipeManagementPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]); // 🔥 NEW
   const [isLoading, setIsLoading] = useState(true);
   
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   
-  // Form state
   const [selectedProductId, setSelectedProductId] = useState('');
   const [description, setDescription] = useState('');
-  const [ingredients, setIngredients] = useState<IngredientForm[]>([
-    { name: '', quantity: '', note: '' }
+  const [ingredientForms, setIngredientForms] = useState<IngredientForm[]>([
+    { ingredientId: '', quantity: '' }
   ]);
   const [steps, setSteps] = useState<StepForm[]>([
     { stepNumber: 1, instruction: '' }
@@ -52,12 +47,14 @@ export default function RecipeManagementPage() {
 
   const fetchData = async () => {
     try {
-      const [recipesRes, productsRes] = await Promise.all([
+      const [recipesRes, productsRes, ingredientsRes] = await Promise.all([
         recipesAPI.getAll(),
         productsAPI.getAll(),
+        ingredientsAPI.getAll(), // 🔥 NEW
       ]);
       setRecipes(recipesRes.data);
       setProducts(productsRes.data);
+      setIngredients(ingredientsRes.data); // 🔥 NEW
     } catch (error) {
       console.error(error);
       toast.error('Không thể tải dữ liệu');
@@ -71,11 +68,13 @@ export default function RecipeManagementPage() {
       setEditingRecipe(recipe);
       setSelectedProductId(recipe.productId.toString());
       setDescription(recipe.description || '');
-      setIngredients(recipe.ingredients.map(ing => ({
-        name: ing.name,
-        quantity: ing.quantity,
-        note: ing.note || ''
+      
+      // 🔥 Map ingredients with ingredientId
+      setIngredientForms(recipe.ingredients.map(ing => ({
+        ingredientId: ing.ingredient.id.toString(),
+        quantity: ing.quantity.toString(),
       })));
+      
       setSteps(recipe.steps.map(step => ({
         stepNumber: step.stepNumber,
         instruction: step.instruction
@@ -84,40 +83,34 @@ export default function RecipeManagementPage() {
       setEditingRecipe(null);
       setSelectedProductId('');
       setDescription('');
-      setIngredients([{ name: '', quantity: '', note: '' }]);
+      setIngredientForms([{ ingredientId: '', quantity: '' }]);
       setSteps([{ stepNumber: 1, instruction: '' }]);
     }
     setShowModal(true);
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingRecipe(null);
-  };
-
   // Ingredient handlers
   const addIngredient = () => {
-    setIngredients([...ingredients, { name: '', quantity: '', note: '' }]);
+    setIngredientForms([...ingredientForms, { ingredientId: '', quantity: '' }]);
   };
 
   const removeIngredient = (index: number) => {
-    setIngredients(ingredients.filter((_, i) => i !== index));
+    setIngredientForms(ingredientForms.filter((_, i) => i !== index));
   };
 
   const updateIngredient = (index: number, field: keyof IngredientForm, value: string) => {
-    const updated = [...ingredients];
+    const updated = [...ingredientForms];
     updated[index][field] = value;
-    setIngredients(updated);
+    setIngredientForms(updated);
   };
 
-  // Step handlers
+  // Step handlers (unchanged)
   const addStep = () => {
     setSteps([...steps, { stepNumber: steps.length + 1, instruction: '' }]);
   };
 
   const removeStep = (index: number) => {
     const updated = steps.filter((_, i) => i !== index);
-    // Re-number steps
     updated.forEach((step, i) => {
       step.stepNumber = i + 1;
     });
@@ -139,7 +132,7 @@ export default function RecipeManagementPage() {
     }
 
     // Validate
-    const validIngredients = ingredients.filter(ing => ing.name && ing.quantity);
+    const validIngredients = ingredientForms.filter(ing => ing.ingredientId && ing.quantity);
     const validSteps = steps.filter(step => step.instruction);
 
     if (validIngredients.length === 0) {
@@ -157,7 +150,10 @@ export default function RecipeManagementPage() {
       const data = {
         productId: parseInt(selectedProductId),
         description,
-        ingredients: validIngredients,
+        ingredients: validIngredients.map(ing => ({
+          ingredientId: parseInt(ing.ingredientId),
+          quantity: parseFloat(ing.quantity),
+        })),
         steps: validSteps,
       };
 
@@ -192,8 +188,18 @@ export default function RecipeManagementPage() {
     }
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingRecipe(null);
+  };
+
   const productsWithRecipe = recipes.map(r => r.productId);
   const availableProducts = products.filter(p => !productsWithRecipe.includes(p.id));
+
+  // 🔥 Get ingredient name helper
+  const getIngredientName = (id: number) => {
+    return ingredients.find(ing => ing.id === id)?.name || 'Unknown';
+  };
 
   if (isLoading && recipes.length === 0) {
     return (
@@ -217,7 +223,7 @@ export default function RecipeManagementPage() {
                 <BookOpenIcon className="h-8 w-8 text-orange-600" />
                 Quản lý Công thức
               </h1>
-              <p className="text-gray-600 mt-2">Quản lý công thức pha chế cho từng món</p>
+              <p className="text-gray-600 mt-2">Tạo công thức pha chế với nguyên liệu từ kho</p>
             </div>
             <Button
               variant="primary"
@@ -229,43 +235,12 @@ export default function RecipeManagementPage() {
           </div>
         </div>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card padding="md">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Tổng công thức</p>
-              <p className="text-3xl font-bold text-orange-600">{recipes.length}</p>
-            </div>
-          </Card>
-          <Card padding="md">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Món chưa có</p>
-              <p className="text-3xl font-bold text-gray-900">{availableProducts.length}</p>
-            </div>
-          </Card>
-          <Card padding="md">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Tổng món</p>
-              <p className="text-3xl font-bold text-indigo-600">{products.length}</p>
-            </div>
-          </Card>
-          <Card padding="md">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">% Hoàn thành</p>
-              <p className="text-3xl font-bold text-green-600">
-                {products.length > 0 ? Math.round((recipes.length / products.length) * 100) : 0}%
-              </p>
-            </div>
-          </Card>
-        </div>
-
         {/* Recipes Grid */}
         {recipes.length === 0 ? (
           <Card padding="lg">
             <div className="text-center py-12">
               <BookOpenIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Chưa có công thức nào</h3>
-              <p className="text-gray-600 mb-4">Bắt đầu bằng cách thêm công thức đầu tiên</p>
               <Button variant="primary" onClick={() => openModal()}>
                 <PlusIcon className="h-5 w-5 mr-2" />
                 Thêm công thức
@@ -276,36 +251,22 @@ export default function RecipeManagementPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recipes.map((recipe) => (
               <Card key={recipe.id} padding="none" className="overflow-hidden">
-                {/* Header */}
                 <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white">
                   <h3 className="font-bold text-lg">{recipe.product.name}</h3>
                   <p className="text-sm opacity-90">{recipe.product.price.toLocaleString()}đ</p>
                 </div>
 
-                {/* Body */}
                 <div className="p-4">
                   {recipe.description && (
                     <p className="text-sm text-gray-600 mb-3 italic">{recipe.description}</p>
                   )}
 
-                  <div className="space-y-2 mb-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <BeakerIcon className="h-4 w-4 text-orange-600" />
-                      <span className="font-medium">{recipe.ingredients.length} nguyên liệu</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <ListBulletIcon className="h-4 w-4 text-orange-600" />
-                      <span className="font-medium">{recipe.steps.length} bước</span>
-                    </div>
-                  </div>
-
-                  {/* Preview ingredients */}
                   <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">Nguyên liệu:</p>
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Nguyên liệu từ kho:</p>
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {recipe.ingredients.slice(0, 3).map((ing, idx) => (
                         <p key={idx} className="text-xs text-gray-600">
-                          • {ing.name}: <span className="font-semibold">{ing.quantity}</span>
+                          • {ing.ingredient.name}: <span className="font-semibold">{ing.quantity} {ing.ingredient.unit}</span>
                         </p>
                       ))}
                       {recipe.ingredients.length > 3 && (
@@ -316,7 +277,6 @@ export default function RecipeManagementPage() {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex gap-2">
                     <Button
                       variant="secondary"
@@ -351,7 +311,6 @@ export default function RecipeManagementPage() {
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Selection */}
           <Select
             label="Chọn sản phẩm *"
             value={selectedProductId}
@@ -367,7 +326,6 @@ export default function RecipeManagementPage() {
             disabled={!!editingRecipe}
           />
 
-          {/* Description */}
           <Textarea
             label="Mô tả công thức (tùy chọn)"
             value={description}
@@ -380,7 +338,7 @@ export default function RecipeManagementPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-semibold text-gray-700">
-                Nguyên liệu *
+                Nguyên liệu từ kho *
               </label>
               <Button type="button" size="sm" onClick={addIngredient}>
                 <PlusIcon className="h-4 w-4 mr-1" />
@@ -388,31 +346,35 @@ export default function RecipeManagementPage() {
               </Button>
             </div>
             <div className="space-y-3 max-h-64 overflow-y-auto">
-              {ingredients.map((ing, index) => (
+              {ingredientForms.map((ing, index) => (
                 <div key={index} className="flex gap-2 items-start bg-gray-50 p-3 rounded-lg">
                   <div className="flex-shrink-0 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold mt-2">
                     {index + 1}
                   </div>
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <Input
-                      placeholder="Tên nguyên liệu *"
-                      value={ing.name}
-                      onChange={(e) => updateIngredient(index, 'name', e.target.value)}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Select
+                      label=""
+                      value={ing.ingredientId}
+                      onChange={(e) => updateIngredient(index, 'ingredientId', e.target.value)}
+                      options={[
+                        { value: '', label: '-- Chọn nguyên liệu --' },
+                        ...ingredients.map(ingredient => ({
+                          value: ingredient.id.toString(),
+                          label: `${ingredient.name} (${ingredient.unit})`,
+                        })),
+                      ]}
                       required
                     />
                     <Input
-                      placeholder="Định lượng * (VD: 50ml, 30g)"
+                      placeholder="Định lượng (VD: 0.03)"
+                      type="number"
+                      step="0.001"
                       value={ing.quantity}
                       onChange={(e) => updateIngredient(index, 'quantity', e.target.value)}
                       required
                     />
-                    <Input
-                      placeholder="Ghi chú (tùy chọn)"
-                      value={ing.note}
-                      onChange={(e) => updateIngredient(index, 'note', e.target.value)}
-                    />
                   </div>
-                  {ingredients.length > 1 && (
+                  {ingredientForms.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeIngredient(index)}
@@ -426,7 +388,7 @@ export default function RecipeManagementPage() {
             </div>
           </div>
 
-          {/* Steps */}
+          {/* Steps (unchanged) */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-semibold text-gray-700">
@@ -466,7 +428,6 @@ export default function RecipeManagementPage() {
             </div>
           </div>
 
-          {/* Actions */}
           <ModalFooter>
             <Button type="button" variant="secondary" onClick={closeModal}>
               Hủy

@@ -128,13 +128,13 @@ export interface RegisterData extends LoginCredentials {
   role?: User['role'];
 }
 
-// 👇 NEW: Recipe Types
 export interface RecipeIngredient {
   id: number;
-  name: string;
-  quantity: string;
-  note?: string;
+  ingredientId: number; // 🔥 Changed
+  quantity: number;
+  ingredient: Ingredient; // 🔥 Full ingredient object
 }
+
 
 export interface RecipeStep {
   id: number;
@@ -155,13 +155,14 @@ export interface Recipe {
   };
 }
 
+
+// Update Recipe types to use ingredientId
 export interface CreateRecipeInput {
   productId: number;
   description?: string;
   ingredients: Array<{
-    name: string;
-    quantity: string;
-    note?: string;
+    ingredientId: number; // 🔥 Changed
+    quantity: number;
   }>;
   steps: Array<{
     stepNumber: number;
@@ -192,6 +193,54 @@ export interface EditOrderItemInput {
   newNote?: string;
   reason: string;
   userId?: number;
+}
+
+export interface Ingredient {
+  id: number;
+  name: string;
+  unit: string;
+  currentStock: number;
+  costPrice: number;
+  minStock: number;
+  updatedAt: string;
+}
+
+export interface InventoryTransaction {
+  id: number;
+  ingredientId: number;
+  change: number;
+  price: number;
+  type: 'IMPORT' | 'EXPORT_SALES' | 'EXPORT_DAMAGE' | 'AUDIT';
+  note?: string;
+  userId?: number;
+  createdAt: string;
+  ingredient?: Ingredient;
+}
+
+export interface InventoryReport {
+  id: number;
+  name: string;
+  unit: string;
+  currentStock: number;
+  costPrice: number;
+  minStock: number;
+  status: 'LOW_STOCK' | 'OUT_OF_STOCK' | 'OK';
+  totalValue: number;
+  recentTransactions: InventoryTransaction[];
+}
+
+export interface COGSReport {
+  totalCOGS: number;
+  startDate: string;
+  endDate: string;
+  breakdown: Array<{
+    ingredient: string;
+    quantity: number;
+    unit: string;
+    costPrice: number;
+    totalCost: number;
+    date: string;
+  }>;
 }
 
 // ============================================
@@ -323,3 +372,44 @@ export const recipesAPI = {
   delete: (id: number) =>
     apiClient.delete<{ message: string; id: number }>(`/recipes/${id}`),
 };
+
+export const ingredientsAPI = {
+  // Get all ingredients
+  getAll: () => apiClient.get<Ingredient[]>('/ingredients'),
+  
+  // Get inventory report
+  getReport: () => apiClient.get<InventoryReport[]>('/ingredients/report'),
+  
+  // Create ingredient
+  create: (data: { name: string; unit: string; minStock?: number }) =>
+    apiClient.post<Ingredient>('/ingredients', data),
+  
+  // Import stock
+  import: (ingredientId: number, quantity: number, price: number, note?: string) =>
+    apiClient.post<Ingredient>(`/ingredients/${ingredientId}/import`, {
+      quantity,
+      price,
+      note,
+    }),
+  
+  // Stocktake (audit)
+  stocktake: (ingredientId: number, actualStock: number, reason: string) =>
+    apiClient.post<Ingredient>(`/ingredients/${ingredientId}/stocktake`, {
+      actualStock,
+      reason,
+    }),
+  
+  // Damage/waste
+  damage: (ingredientId: number, quantity: number, reason: string) =>
+    apiClient.post<Ingredient>(`/ingredients/${ingredientId}/damage`, {
+      quantity,
+      reason,
+    }),
+  
+  // Get COGS report
+  getCOGS: (startDate: string, endDate: string) =>
+    apiClient.get<COGSReport>('/ingredients/cogs', {
+      params: { startDate, endDate },
+    }),
+};
+

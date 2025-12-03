@@ -10,18 +10,10 @@ import { UsersModule } from './users/users.module';
 import { ZonesModule } from './zones/zones.module';
 import { TablesModule } from './tables/tables.module';
 import { RecipesModule } from './recipes/recipes.module';
-import { InventoryCategoriesModule } from './inventory-categories/inventory-categories.module';
-import { InventoryItemsModule } from './inventory-items/inventory-items.module';
-import { ConsumptionTrackingModule } from './consumption-tracking/consumption-tracking.module';
-import { SuppliersModule } from './suppliers/suppliers.module';
-import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
-import { StockTakesModule } from './stock-takes/stock-takes.module';
-import { AttendanceModule } from './attendance/attendance.module';
-import { ShiftsModule } from './shifts/shifts.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { HrModule } from './hr/hr.module';
 import { IngredientsModule } from './ingredients/ingredients.module';
-import { ShiftsModule } from './shifts/shifts.module';
 
 @Module({
   imports: [
@@ -34,17 +26,10 @@ import { ShiftsModule } from './shifts/shifts.module';
     ZonesModule,
     TablesModule,
     RecipesModule,
-    InventoryCategoriesModule,
-    InventoryItemsModule,
-    ConsumptionTrackingModule,
-    SuppliersModule,
-    PurchaseOrdersModule,
-    StockTakesModule,
-    AttendanceModule,
-    ShiftsModule,
     IngredientsModule,
     HrModule,
     ExpensesModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
