@@ -71,6 +71,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       icon: ClipboardDocumentListIcon,
       roles: ['ADMIN', 'MANAGER'],
     },
+    {
+      name: 'Quản lý Tồn kho',
+      href: '/inventory',
+      icon: FolderIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      name: 'Quản lý Nhân sự',
+      href: '/hr',
+      icon: UserGroupIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      name: 'Quản lý Chi phí',
+      href: '/expenses',
+      icon: FolderIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      name: 'Báo cáo',
+      href: '/reports',
+      icon: ClipboardDocumentListIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      name: 'Lịch sử Tồn kho',
+      href: '/inventory-history',
+      icon: FolderIcon,
+      roles: ['ADMIN', 'MANAGER'],
+    },
   ];
 
   const filteredNav = navigation.filter((item) =>

@@ -15,6 +15,11 @@ import MenuManagementPage from './features/menu/pages/MenuManagementPage';
 import StaffManagementPage from './features/staff/pages/StaffManagementPage';
 import ZonesManagementPage from './features/zones/pages/ZonesManagementPage';
 import RecipeManagementPage from './features/recipes/pages/RecipeManagementPage';
+import InventoryManagementPage from './features/inventory/pages/InventoryManagementPage';
+import HRManagementPage from './features/hr/pages/HRManagementPage';
+import ExpensesManagementPage from './features/expenses/pages/ExpensesManagementPage';
+import ReportsPage from './features/reports/pages/ReportsPage';
+import InventoryHistoryPage from './features/inventory/pages/InventoryHistoryPage';
 
 function App() {
   return (
@@ -46,6 +51,11 @@ function App() {
               <Route path="/zones" element={<ZonesManagementPage />} />
               <Route path="/staff" element={<StaffManagementPage />} />
               <Route path="/recipes" element={<RecipeManagementPage />} />
+              <Route path="/inventory" element={<InventoryManagementPage />} />
+              <Route path="/hr" element={<HRManagementPage />} />
+              <Route path="/expenses" element={<ExpensesManagementPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/inventory-history" element={<InventoryHistoryPage />} />
             </Route>
           </Route>
         </Route>
