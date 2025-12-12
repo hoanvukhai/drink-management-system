@@ -1,7 +1,8 @@
-// frontend/src/components/layout/MainLayout.tsx
+// frontend/src/components/layout/MainLayout.tsx - WITH FLOATING KITCHEN BUTTON
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { KitchenFloatingButton } from '../pos/KitchenFloatingButton';
 import { Toaster } from 'react-hot-toast';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
@@ -53,8 +54,11 @@ export function MainLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto relative">
           <Outlet />
+          
+          {/* 🔥 Kitchen Floating Button */}
+          <KitchenFloatingButton />
         </main>
       </div>
     </div>
