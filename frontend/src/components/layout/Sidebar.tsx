@@ -1,21 +1,17 @@
-// frontend/src/components/layout/Sidebar.tsx - IMPROVED VERSION
+// frontend/src/components/layout/Sidebar.tsx - FINAL OPTIMIZED
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import {
-  FireIcon,
+  HomeIcon,
+  ShoppingBagIcon,
   ClipboardDocumentListIcon,
-  FolderIcon,
-  UserGroupIcon,
+  Cog6ToothIcon,
+  ChartBarIcon,
   ArrowRightOnRectangleIcon,
   XMarkIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  HomeIcon,
-  ShoppingBagIcon,
-  BeakerIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -29,7 +25,6 @@ interface MenuItem {
   icon: any;
   roles: string[];
   children?: MenuItem[];
-  badge?: string;
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -53,34 +48,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
     },
 
-    // 🔥 VẬN HÀNH (Operations)
+    // 📋 LỊCH SỬ ĐơN
     {
-      name: 'Vận hành',
-      icon: FireIcon,
+      name: 'Lịch sử đơn hàng',
+      href: '/orders',
+      icon: ClipboardDocumentListIcon,
       roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
-      children: [
-        {
-          name: 'Phục vụ & Thu ngân',
-          href: '/main',
-          icon: ShoppingBagIcon,
-          roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
-        },
-        {
-          name: 'Bếp / Bar',
-          href: '/kitchen',
-          icon: FireIcon,
-          roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
-        },
-        {
-          name: 'Lịch sử đơn hàng',
-          href: '/orders',
-          icon: ClipboardDocumentListIcon,
-          roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
-        },
-      ],
     },
 
-    // ⚙️ QUẢN LÝ (Management)
+    // ⚙️ QUẢN LÝ (Gộp tất cả setup/config)
     {
       name: 'Quản lý',
       icon: Cog6ToothIcon,
@@ -89,7 +65,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
           name: 'Menu & Sản phẩm',
           href: '/menu',
-          icon: FolderIcon,
+          icon: ShoppingBagIcon,
+          roles: ['ADMIN', 'MANAGER'],
+        },
+        {
+          name: 'Công thức',
+          href: '/recipes',
+          icon: ShoppingBagIcon,
           roles: ['ADMIN', 'MANAGER'],
         },
         {
@@ -99,21 +81,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           roles: ['ADMIN', 'MANAGER'],
         },
         {
-          name: 'Công thức',
-          href: '/recipes',
-          icon: BeakerIcon,
-          roles: ['ADMIN', 'MANAGER'],
-        },
-        {
           name: 'Nhân sự',
           href: '/staff',
-          icon: UserGroupIcon,
+          icon: HomeIcon,
           roles: ['ADMIN', 'MANAGER'],
         },
       ],
     },
 
-    // 📊 KHO & TÀI CHÍNH
+    // 📊 KHO & TÀI CHÍNH (Gộp inventory + reports + expenses)
     {
       name: 'Kho & Tài chính',
       icon: ChartBarIcon,
@@ -122,7 +98,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
           name: 'Quản lý Kho',
           href: '/inventory',
-          icon: BeakerIcon,
+          icon: ShoppingBagIcon,
           roles: ['ADMIN', 'MANAGER'],
         },
         {
@@ -145,14 +121,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         },
       ],
     },
-
-    // 👥 CHẤM CÔNG
-    {
-      name: 'Chấm công',
-      href: '/hr',
-      icon: UserGroupIcon,
-      roles: ['ADMIN', 'MANAGER'],
-    },
   ];
 
   const filteredNav = navigation.filter((item) =>
@@ -165,7 +133,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const Icon = item.icon;
 
     if (hasChildren) {
-      // Group with dropdown
       return (
         <div key={item.name}>
           <button
@@ -196,7 +163,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       );
     }
 
-    // Single link
     return (
       <NavLink
         key={item.href}
@@ -214,11 +180,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         <Icon className="h-5 w-5" />
         <span className="font-medium text-sm">{item.name}</span>
-        {item.badge && (
-          <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-            {item.badge}
-          </span>
-        )}
       </NavLink>
     );
   };
@@ -250,8 +211,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               ☕
             </div>
             <div>
-              <h2 className="font-bold text-lg">Cafe POS</h2>
-              <p className="text-xs text-gray-400">Management System</p>
+              <h2 className="font-bold text-lg">Drink POS</h2>
+              <p className="text-xs text-gray-400">Management</p>
             </div>
           </div>
           <button

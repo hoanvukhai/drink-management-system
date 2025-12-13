@@ -1,4 +1,3 @@
-// src/users/users.controller.ts
 import {
   Controller,
   Get,
@@ -9,51 +8,84 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // <-- Tạo file này chưa? Nếu chưa dùng AuthGuard('jwt')
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 
+interface RequestWithUser {
+  user: {
+    userId: number;
+    username: string;
+    role: Role;
+  };
+}
+
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard) // 1. Phải login & Phải check quyền
-@Roles(Role.ADMIN, Role.MANAGER) // 2. Chỉ Admin/Manager mới được vào
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // ✅ ADMIN/MANAGER có thể thêm nhân viên
   @Post()
-  create(@Body() createUserDto: CreateUserDto) {
+  @Roles(Role.ADMIN, Role.MANAGER)
+  create(
+    @Body() createUserDto: CreateUserDto,
+    @Request() req: RequestWithUser,
+  ) {
+    // 🔥 MANAGER không được tạo ADMIN hoặc MANAGER khác
+    if (req.user.role === Role.MANAGER) {
+      if (
+        createUserDto.role === Role.ADMIN ||
+        createUserDto.role === Role.MANAGER
+      ) {
+        throw new ForbiddenException(
+          'Manager không được tạo tài khoản Admin hoặc Manager',
+        );
+      }
+    }
+
     return this.usersService.create(createUserDto);
   }
 
   @Get()
+  @Roles(Role.ADMIN, Role.MANAGER)
   findAll() {
     return this.usersService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  @Roles(Role.ADMIN, Role.MANAGER)
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
-  }
-
+  // ✅ UPDATE USER
   @Patch(':id')
+  @Roles(Role.ADMIN, Role.MANAGER)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
+    @Request() req: RequestWithUser,
   ) {
-    return this.usersService.update(id, updateUserDto);
+    // 🔥 MANAGER không được sửa ADMIN hoặc MANAGER khác
+    return this.usersService.update(id, updateUserDto, req.user);
   }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-  //   return this.usersService.update(+id, updateUserDto);
-  // }
+  // ✅ DELETE USER
+  @Delete(':id')
+  @Roles(Role.ADMIN, Role.MANAGER)
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: RequestWithUser,
+  ) {
+    // 🔥 MANAGER không được xóa ADMIN hoặc MANAGER
+    return this.usersService.remove(id, req.user);
+  }
 }

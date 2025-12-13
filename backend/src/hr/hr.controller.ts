@@ -9,6 +9,7 @@ import {
   Query,
   ParseIntPipe,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { HrService } from './hr.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -16,33 +17,58 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role, ShiftStatus } from '@prisma/client';
 
+interface RequestWithUser {
+  user: {
+    userId: number;
+    username: string;
+    role: Role;
+  };
+}
+
 @Controller('hr')
 @UseGuards(JwtAuthGuard)
 export class HrController {
   constructor(private readonly hrService: HrService) {}
 
-  // =====================================================
-  // ATTENDANCE
-  // =====================================================
-
+  // ✅ EMPLOYEE có thể tự chấm công
   @Post('attendance/check-in')
-  checkIn(@Body() data: { userId: number; note?: string }) {
-    return this.hrService.checkIn(data.userId, data.note);
+  checkIn(@Body() data: { userId?: number }, @Request() req: RequestWithUser) {
+    // Nếu không truyền userId, dùng userId của người đang login
+    const userId = data.userId || req.user.userId;
+
+    // 🔥 EMPLOYEE chỉ được chấm công cho chính mình
+    if (req.user.role === Role.EMPLOYEE && userId !== req.user.userId) {
+      throw new Error('Bạn chỉ được chấm công cho chính mình');
+    }
+
+    return this.hrService.checkIn(userId);
   }
 
   @Post('attendance/check-out')
-  checkOut(@Body() data: { userId: number; note?: string }) {
-    return this.hrService.checkOut(data.userId, data.note);
+  checkOut(@Body() data: { userId?: number }, @Request() req: RequestWithUser) {
+    const userId = data.userId || req.user.userId;
+
+    if (req.user.role === Role.EMPLOYEE && userId !== req.user.userId) {
+      throw new Error('Bạn chỉ được chấm công cho chính mình');
+    }
+
+    return this.hrService.checkOut(userId);
   }
 
+  // ✅ EMPLOYEE có thể xem chấm công của chính mình
   @Get('attendance')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
   getAttendance(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('userId') userId?: string,
+    @Request() req?: RequestWithUser,
   ) {
+    // 🔥 EMPLOYEE chỉ xem được của mình
+    if (req?.user.role === Role.EMPLOYEE) {
+      return this.hrService.getAttendance(startDate, endDate, req.user.userId);
+    }
+
+    // ADMIN/MANAGER xem được tất cả
     return this.hrService.getAttendance(
       startDate,
       endDate,
@@ -51,19 +77,20 @@ export class HrController {
   }
 
   @Get('attendance/summary/:userId')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MANAGER)
   getWorkingSummary(
     @Param('userId', ParseIntPipe) userId: number,
-    @Query('month') month: string, // format: YYYY-MM
+    @Query('month') month: string,
+    @Request() req: RequestWithUser,
   ) {
+    // 🔥 EMPLOYEE chỉ xem được của mình
+    if (req.user.role === Role.EMPLOYEE && userId !== req.user.userId) {
+      throw new Error('Bạn chỉ được xem thông tin của chính mình');
+    }
+
     return this.hrService.getWorkingSummary(userId, month);
   }
 
-  // =====================================================
-  // SHIFTS
-  // =====================================================
-
+  // ✅ CHỈ ADMIN/MANAGER quản lý ca làm
   @Post('shifts')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MANAGER)
@@ -115,10 +142,6 @@ export class HrController {
   deleteShift(@Param('id', ParseIntPipe) id: number) {
     return this.hrService.deleteShift(id);
   }
-
-  // =====================================================
-  // REPORTS
-  // =====================================================
 
   @Get('reports/daily')
   @UseGuards(RolesGuard)
